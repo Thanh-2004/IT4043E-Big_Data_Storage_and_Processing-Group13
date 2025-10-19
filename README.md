@@ -1,6 +1,10 @@
-
 # 🌦️ Weather Monitoring and Forecasting System  
 **Big Data Storage and Processing – Group 13**
+
+## Checkpoint
+[20-10-2025 Checkpoint](materials/checkpoint_slide_201025.pdf)
+
+
 
 ## 📘 Overview  
 This project develops a **Weather Monitoring and Forecasting System** leveraging **Big Data technologies** to enhance the **accuracy, timeliness, and scalability** of meteorological analysis.  
