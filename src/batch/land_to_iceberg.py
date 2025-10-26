@@ -1,0 +1,1 @@
+# MinIO raw files -> Iceberg tables for raw data
