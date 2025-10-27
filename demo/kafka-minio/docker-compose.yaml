@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:8.1.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    env_file: "kafka.env"
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: minio
+    command: server /data --console-address ":9001"
+    env_file: "minio.env"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console
+    volumes:
+      - minio_data:/data
+
+  app:
+    build: .
+    container_name: kafka-minio-app
+    depends_on:
+      - kafka
+      - minio
+    env_file: "app.env"
+    # run nothing by default -- you will run producer or consumer via docker-compose run
+    entrypoint: ["sleep", "infinity"]
+
+volumes:
+  minio_data:
