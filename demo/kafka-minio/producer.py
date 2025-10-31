@@ -11,7 +11,7 @@ import socket
 from datetime import datetime
 from kafka import KafkaProducer
 
-KAFKA_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094")
+KAFKA_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 TOPIC = os.getenv("KAFKA_TOPIC", "events")
 INTERVAL = float(os.getenv("PRODUCER_SEND_INTERVAL_SECONDS", "1.0"))
 
@@ -28,8 +28,11 @@ def main():
     producer = KafkaProducer(
         bootstrap_servers=[KAFKA_SERVERS],
         value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-        linger_ms=5,
-        acks="1",
+        acks='all',
+        retries=3,
+        batch_size=16384,
+        linger_ms=10,
+        compression_type='gzip'
     )
 
     i = 0
