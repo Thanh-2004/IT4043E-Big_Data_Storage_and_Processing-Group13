@@ -29,7 +29,6 @@ def create_iceberg_table(spark: SparkSession):
     # add partitioning
 
 def get_spark_session():
-    # catalog_uri = os.getenv("CATALOG_URI", "http://iceberg-rest:8181")
     warehouse_path = os.getenv("CATALOG_WAREHOUSE", "s3a://warehouse/")
     return (
         SparkSession.builder
@@ -38,9 +37,7 @@ def get_spark_session():
             # Catalog configs
             .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")
             .config("spark.sql.catalog.my_catalog.type", "hadoop")
-            # .config("spark.sql.catalog.my_catalog.uri", catalog_uri)
             .config("spark.sql.catalog.my_catalog.warehouse", warehouse_path)
-            .config("spark.sql.catalog.my_catalog.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
             .config("spark.sql.defaultCatalog", "my_catalog")
             .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
             

@@ -86,47 +86,22 @@ services:
     volumes:
       - minio_data:/data
   
-  iceberg-rest:
-    image: tabulario/iceberg-rest:1.6.0
-    container_name: iceberg-rest
-    environment:
-      CATALOG_WAREHOUSE: s3a://warehouse/
-      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
-      CATALOG_S3_ENDPOINT: http://minio:9000
-      CATALOG_S3_PATH_STYLE_ACCESS: "true"
-      AWS_ACCESS_KEY_ID: minio
-      AWS_SECRET_ACCESS_KEY: minio123
-      AWS_REGION: us-east-1
-    ports:
-      - "8181:8181"
-    depends_on:
-      - minio
-  
   iceberg-ingest:
-    image: tabulario/spark-iceberg:3.5.5_1.8.1
+    image: apache/spark-py:v3.4.0
     container_name: iceberg-ingest
     environment:
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio123
       AWS_REGION: us-east-1
-      CATALOG_URI: http://iceberg-rest:8181
+      CATALOG_WAREHOUSE: s3a://warehouse/iceberg/
       RAW_ZONE_PATH: raw-zone/topics/events/
+      SPARK_JARS_IVY: /tmp/.ivy2
     depends_on:
-      - iceberg-rest
       - minio
-    entrypoint: ["/opt/spark/bin/spark-submit"]
-    command:
-      [
-        "--master", "local[*]",
-        "--packages", "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.0",
-        "/app/main.py"
-      ]
+    command: |
+      bash /app/run.sh
     ports:
-      - 4040:4040
-      - 8888:8888
       - 8080:8080
-      - 10000:10000
-      - 10001:10001
     volumes:
       - ./iceberg-ingest:/app
 
