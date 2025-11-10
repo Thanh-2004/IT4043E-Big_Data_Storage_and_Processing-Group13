@@ -14,10 +14,10 @@ def get_schema():
     ])
 
 def create_iceberg_table(spark: SparkSession):
-    spark.sql("""CREATE NAMESPACE IF NOT EXISTS my_catalog.cleaned""")
+    spark.sql("""CREATE NAMESPACE IF NOT EXISTS lakehouse.cleaned""")
     
     spark.sql("""
-        CREATE TABLE IF NOT EXISTS my_catalog.cleaned.events (
+        CREATE TABLE IF NOT EXISTS lakehouse.cleaned.events (
             id string,
             value double,
             source string,
@@ -35,10 +35,10 @@ def get_spark_session():
             .appName("minio-to-iceberg")
         
             # Catalog configs
-            .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")
-            .config("spark.sql.catalog.my_catalog.type", "hadoop")
-            .config("spark.sql.catalog.my_catalog.warehouse", warehouse_path)
-            .config("spark.sql.defaultCatalog", "my_catalog")
+            .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
+            .config("spark.sql.catalog.lakehouse.type", "hadoop")
+            .config("spark.sql.catalog.lakehouse.warehouse", warehouse_path)
+            .config("spark.sql.defaultCatalog", "lakehouse")
             .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
             
             # MinIO S3 configs (for s3a interface)
@@ -73,7 +73,7 @@ query = (
         .outputMode("append")
         .trigger(processingTime="15 seconds") # write period
         .option("checkpointLocation", "s3a://checkpoints/iceberg-ingest/")
-        .toTable("my_catalog.cleaned.events")
+        .toTable("lakehouse.cleaned.events")
 )
 
 try:
