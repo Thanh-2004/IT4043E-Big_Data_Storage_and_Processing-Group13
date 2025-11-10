@@ -85,6 +85,27 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  
+  mc:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
+    container_name: mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+      mc alias set myminio http://minio:9000 minio minio123 &&
+      mc mb -p myminio/warehouse &&
+      mc mb -p myminio/raw-zone &&
+      echo '✅ Buckets created and permissions applied'
+      "
+    restart: "no"
+    # remove container automatically after it's done
   
   iceberg-ingest:
     image: apache/spark-py:v3.4.0

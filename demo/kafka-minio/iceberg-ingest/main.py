@@ -30,6 +30,8 @@ def create_iceberg_table(spark: SparkSession):
 
 def get_spark_session():
     warehouse_path = os.getenv("CATALOG_WAREHOUSE", "s3a://warehouse/")
+    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID", "minio")
+    aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")
     return (
         SparkSession.builder
             .appName("minio-to-iceberg")
@@ -43,8 +45,8 @@ def get_spark_session():
             
             # MinIO S3 configs (for s3a interface)
             .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000")
-            .config("spark.hadoop.fs.s3a.access.key", "minio")
-            .config("spark.hadoop.fs.s3a.secret.key", "minio123")
+            .config("spark.hadoop.fs.s3a.access.key", aws_access_key)
+            .config("spark.hadoop.fs.s3a.secret.key", aws_secret_key)
             .config("spark.hadoop.fs.s3a.path.style.access", "true")
             .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
             
@@ -71,8 +73,8 @@ query = (
     raw_df.writeStream
         .format("iceberg")
         .outputMode("append")
-        .trigger(processingTime="15 seconds") # write period
-        .option("checkpointLocation", "s3a://checkpoints/iceberg-ingest/")
+        .trigger(processingTime="1 minute") # write period
+        .option("checkpointLocation", "s3a://warehouse/checkpoints/iceberg-ingest/")
         .toTable("lakehouse.cleaned.events")
 )
 
