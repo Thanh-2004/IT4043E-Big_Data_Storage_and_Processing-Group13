@@ -26,7 +26,7 @@ The system aims to:
 ## 🧩 System Architecture  
 
 ### 🔹 Architecture Model
-![System Architecture](materials/lambda_architecture.png)
+![System Architecture](materials/lambda_architecture2.png)
 - **Lambda Architecture** combining **Batch Processing** and **Stream Processing** for scalable and fault-tolerant data handling.  
 - Data layers:  
   - **Batch Layer:** Processes large historical datasets for forecasting models.  
