@@ -7,14 +7,15 @@ services:
     ports:
       - "9092:9092"
       - "9093:9093"
+      - "9094:9094"
       - "9101:9101"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: 'broker,controller'
       KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093' # For a single node setup
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
@@ -72,7 +73,7 @@ services:
     volumes:
       - ../demo/kafka-minio/connect-plugins:/usr/share/java/connect-plugins # change later ...
     healthcheck:
-      test: ["CMD", "curl -f http://kafka-connect:8083/connectors || exit 1"]
+      test: ["CMD", "curl", "-f", "http://kafka-connect:8083/connectors"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -134,22 +135,22 @@ services:
     volumes:
       - ../demo/kafka-minio/iceberg-ingest:/app # change later ...
 
-  producer:
-    build:
-      context: ../demo/kafka-minio # change later when moving files to src/
-      dockerfile: ./producer.Dockerfile
-    container_name: producer
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      KAFKA_TOPIC: "events"
-    depends_on:
-      kafka:
-        condition: service_healthy
-      kafka-connect:
-        condition: service_healthy
-      mc:
-        condition: service_completed_successfully
-    entrypoint: ["bash", "produce.sh"]
+  # producer:
+  #   build:
+  #     context: ../demo/kafka-minio # change later when moving files to src/
+  #     dockerfile: ./producer.Dockerfile
+  #   container_name: producer
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  #     KAFKA_TOPIC: "events"
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     kafka-connect:
+  #       condition: service_healthy
+  #     mc:
+  #       condition: service_completed_successfully
+  #   entrypoint: ["bash", "produce.sh"]
   
 volumes:
   minio_data:
