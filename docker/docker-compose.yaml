@@ -113,6 +113,29 @@ services:
     restart: "no"
     # remove container automatically after it's done
   
+  postgres:
+    image: postgres:17.5-alpine3.22
+    environment:
+      POSTGRES_USER: nessie
+      POSTGRES_PASSWORD: nessie
+      POSTGRES_DB: nessie
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  nessie:
+    image: projectnessie/nessie:0.76.6
+    depends_on:
+      - postgres
+    environment:
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/nessie
+      QUARKUS_DATASOURCE_USERNAME: nessie
+      QUARKUS_DATASOURCE_PASSWORD: nessie
+      nessie.version.store.type: JDBC
+    ports:
+      - "19120:19120"
+
   iceberg-ingest:
     image: apache/spark-py:v3.4.0
     container_name: iceberg-ingest
@@ -120,7 +143,11 @@ services:
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio123
       AWS_REGION: us-east-1
+      S3_ENDPOINT: http://minio:9000
+
       CATALOG_WAREHOUSE: s3a://warehouse/iceberg/
+      CATALOG_URI: http://nessie:19120/api/v1
+
       RAW_ZONE_PATH: raw-zone/topics/events/
       SPARK_JARS_IVY: /tmp/.ivy2
     depends_on:
@@ -128,6 +155,7 @@ services:
         condition: service_healthy
       mc:
         condition: service_completed_successfully
+      
     command: |
       bash /app/run.sh
     ports:
@@ -155,3 +183,4 @@ services:
 volumes:
   minio_data:
   kafka_data:
+  pgdata:
