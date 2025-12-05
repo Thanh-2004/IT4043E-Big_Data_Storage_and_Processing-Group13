@@ -78,22 +78,29 @@ def main():
         while True:
             for site in SITES:
                 data = fetch_weather(site["lat"], site["lon"])
-                for i, t in enumerate(data["hourly"]["time"]):
-                    record = {
-                        "site": site["name"],
-                        "lat": site["lat"],
-                        "lon": site["lon"],
-                        "time": t,
-                        "temperature": data["hourly"]["temperature_2m"][i],
-                        "precipitation": data["hourly"]["precipitation"][i],
-                        "humidity": data["hourly"]["relative_humidity_2m"][i],
-                        "wind_speed": data["hourly"]["wind_speed_10m"][i],
-                        "ingested_at": datetime.utcnow().isoformat() + "Z",
-                        "source": "open-meteo"
-                    }
-                    producer.send(TOPIC, record)
+                current = data.get("current", {})
+                
+                if not current:
+                    print(f"⚠️ No data for {site['name']}")
+                    continue
+
+                record = {
+                    "site": site["name"],
+                    "lat": site["lat"],
+                    "lon": site["lon"],
+                    # Lấy thời gian thực từ API (hoặc dùng dt.datetime.now())
+                    "time": current.get("time"), 
+                    "temperature": current.get("temperature_2m"),
+                    "precipitation": current.get("precipitation"),
+                    "humidity": current.get("relative_humidity_2m"),
+                    "wind_speed": current.get("wind_speed_10m"),
+                    "ingested_at": dt.datetime.utcnow().isoformat() + "Z",
+                    "type": "realtime"
+                }
+                producer.send(TOPIC, value=record)
+
             producer.flush()
-            print(f"Batch sent to Kafka. Waiting {INTERVAL} seconds...")
+            print(f"Data sent to Kafka. Waiting {INTERVAL} seconds...")
             time.sleep(INTERVAL)
 
     except KeyboardInterrupt:
