@@ -30,21 +30,36 @@ def create_iceberg_table(spark: SparkSession):
 
 def get_spark_session():
     warehouse_path = os.getenv("CATALOG_WAREHOUSE", "s3a://warehouse/")
+    catalog_uri = os.getenv("CATALOG_URI", "http://localhost:19120/api/v2")
+    s3_endpoint = os.getenv("S3_ENDPOINT", "http://minio:9000")
     aws_access_key = os.getenv("AWS_ACCESS_KEY_ID", "minio")
     aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")
+    
+    packages = [
+        "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.0",
+        "org.projectnessie.nessie-integrations:nessie-spark-extensions-3.5_2.12:0.104.5",
+        "org.apache.hadoop:hadoop-aws:3.3.4",
+        "com.amazonaws:aws-java-sdk-bundle:1.12.262"
+    ]
     return (
         SparkSession.builder
             .appName("minio-to-iceberg")
         
             # Catalog configs
             .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
-            .config("spark.sql.catalog.lakehouse.type", "hadoop")
+            .config("spark.sql.catalog.lakehouse.type", "nessie")
             .config("spark.sql.catalog.lakehouse.warehouse", warehouse_path)
+            .config("spark.sql.catalog.lakehouse.uri", catalog_uri)
+            .config("spark.sql.catalog.lakehouse.ref", "main") # Nessie catalog branch to work in
+            .config("spark.sql.catalog.lakehouse.authentication.type", "NONE") # Nessie authentication type (NONE, BEARER, OAUTH2, AWS)
             .config("spark.sql.defaultCatalog", "lakehouse")
-            .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+            # .config("spark.jars.packages", ",".join(packages))
+            .config("spark.sql.extensions", 
+                    "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,\
+                        org.projectnessie.spark.extensions.NessieSparkSessionExtensions")
             
             # MinIO S3 configs (for s3a interface)
-            .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000")
+            .config("spark.hadoop.fs.s3a.endpoint", s3_endpoint)
             .config("spark.hadoop.fs.s3a.access.key", aws_access_key)
             .config("spark.hadoop.fs.s3a.secret.key", aws_secret_key)
             .config("spark.hadoop.fs.s3a.path.style.access", "true")
