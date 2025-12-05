@@ -115,6 +115,8 @@ services:
   
   postgres:
     image: postgres:17.5-alpine3.22
+    hostname: postgres
+    container_name: postgres
     environment:
       POSTGRES_USER: nessie
       POSTGRES_PASSWORD: nessie
@@ -126,6 +128,8 @@ services:
 
   nessie:
     image: projectnessie/nessie:0.76.6
+    hostname: nessie
+    container_name: nessie
     depends_on:
       - postgres
     environment:
@@ -155,6 +159,8 @@ services:
         condition: service_healthy
       mc:
         condition: service_completed_successfully
+      nessie:
+        condition: service_started
       
     command: |
       bash /app/run.sh
