@@ -167,7 +167,7 @@ services:
     ports:
       - 8080:8080
     volumes:
-      - ../demo/kafka-minio/iceberg-ingest:/app # change later ...
+      - ../demo/iceberg-ingest:/app # change later ...
 
   # producer:
   #   build:
