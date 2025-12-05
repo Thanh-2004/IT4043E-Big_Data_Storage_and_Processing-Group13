@@ -76,7 +76,7 @@ raw_zone_path = os.getenv("RAW_ZONE_PATH", "raw-zone/topics/events/") # <bucket 
 create_iceberg_table(spark)
 
 raw_df = (
-    spark.readStream
+    spark.read
         .format("json")             # or parquet, csv, etc.
         .schema(raw_data_schema)    # define the schema manually
         .load(f"s3a://{raw_zone_path}/*") # for Spark to track subdirectories of partitioned files
@@ -85,19 +85,23 @@ raw_df = (
 # ops here for basic data cleaning
 
 query = (
-    raw_df.writeStream
+    raw_df.write
         .format("iceberg")
-        .outputMode("append")
-        .trigger(processingTime="1 minute") # write period
+        # .outputMode("append")
+        # .trigger(processingTime="1 minute") # write period
         .option("checkpointLocation", "s3a://warehouse/checkpoints/iceberg-ingest/")
-        .toTable("lakehouse.cleaned.events")
+        # .toTable("lakehouse.cleaned.events")
+        .mode("append")
+        # .saveAsTable("lakehouse.cleaned.events")
 )
+# raw_df.writeTo("lakehouse.cleaned.events")
 
 try:
-    query.awaitTermination()
+    # query.awaitTermination()
+    query.saveAsTable("lakehouse.cleaned.events")
 except KeyboardInterrupt:
-    query.stop()
-    print("Streaming to Iceberg stopped.")
+    # query.stop()
+    print("Cleaning data stopped.")
 finally:
-    query.awaitTermination()
+    # query.awaitTermination()
     spark.stop()
