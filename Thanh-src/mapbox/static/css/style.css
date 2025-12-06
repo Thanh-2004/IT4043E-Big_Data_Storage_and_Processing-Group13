@@ -1,0 +1,67 @@
+body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; background-color: #0e0e0e; }
+
+/* Menu Overlay */
+.overlay {
+    position: absolute; top: 20px; right: 20px;
+    background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(10px);
+    padding: 15px; border-radius: 12px; color: white;
+    width: 220px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 10;
+}
+.overlay h3 { margin: 0 0 10px 0; font-size: 16px; color: #ff5757; }
+
+.layer-btn {
+    display: block; width: 100%; padding: 10px; margin-bottom: 5px;
+    background: rgba(255,255,255,0.1); border: none; border-radius: 6px;
+    color: white; cursor: pointer; text-align: left; transition: 0.3s; font-size: 14px;
+}
+.layer-btn:hover, .layer-btn.active { background: #ff5757; font-weight: bold; }
+
+/* Legend */
+.legend { margin-top: 15px; font-size: 12px; }
+.gradient-bar {
+    height: 8px; width: 100%; border-radius: 4px; margin-top: 5px;
+    background: linear-gradient(to right, #00000000, #3696e1, #a9e3f9, #f3ff68, #ff9436, #ff2323);
+}
+.legend-labels { display: flex; justify-content: space-between; margin-top: 2px; color: #aaa; font-size: 10px; }
+.credit { font-size: 11px; color: #888; margin-top: 15px; }
+
+/* Timeline */
+.timeline {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    width: 80%; max-width: 600px; background: rgba(0,0,0,0.6);
+    padding: 10px 20px; border-radius: 30px; display: flex; align-items: center;
+    gap: 15px; color: white; z-index: 10;
+}
+#play-pause { background: none; border: none; color: white; cursor: pointer; font-size: 20px; }
+#time-display { font-variant-numeric: tabular-nums; font-size: 14px; min-width: 120px;}
+
+/* Timeline Slider Styling */
+.timeline input[type=range] {
+    flex-grow: 1; /* Tự co giãn lấp đầy khoảng trống */
+    height: 4px;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.timeline input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    margin-top: -6px; /* Căn giữa */
+}
+
+
+/* Popup Styling */
+.mapboxgl-popup-content {
+    background: rgba(20, 20, 20, 0.95); color: white; border-radius: 8px;
+    padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.8); border: 1px solid #444; min-width: 200px;
+}
+.mapboxgl-popup-close-button { color: white; }
+.weather-stat { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; }

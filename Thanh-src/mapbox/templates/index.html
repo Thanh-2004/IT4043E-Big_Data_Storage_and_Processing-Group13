@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Vietnam Weather App</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <div class="overlay" style="top: auto; bottom: 30px; right: 20px; width: 300px;">
+        <h3><i class="fa-solid fa-clock-rotate-left"></i> Lịch sử Nhiệt độ</h3>
+        
+        <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+            <input type="date" id="history-date" class="dropdown-style" style="width: 60%;">
+            <button id="btn-load-history" class="layer-btn" style="width: 40%; text-align: center; margin:0;">
+                Tải dữ liệu
+            </button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button id="btn-play-history" style="background:none; border:none; color:white; cursor:pointer;">
+                <i class="fa-solid fa-play"></i>
+            </button>
+            <input type="range" id="hour-slider" min="0" max="23" value="0" step="1" style="flex-grow:1;">
+        </div>
+        
+        <div id="history-time-display" style="text-align: center; margin-top: 5px; color: #f3ff68; font-size: 14px;">
+            Chọn ngày để xem...
+        </div>
+    </div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js"></script>
+    <script>const MAPBOX_TOKEN = '{{ mapbox_token }}';</script>
+
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script> <script src="{{ url_for('static', filename='js/history.js') }}"></script> <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <!-- <div class="timeline" style="height: auto; padding: 10px;">
+        <div id="time-display" style="text-align: center;">Đang khởi tạo...</div>
+    </div> -->
+
+
+    <script src="{{ url_for('static', filename='js/popup.js') }}"></script>
+</body>
+</html>

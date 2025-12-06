@@ -1,34 +1,17 @@
-from flask import Flask, jsonify, send_from_directory
-import random
+import os
+from flask import Flask, render_template
+from dotenv import load_dotenv
+
+# Load biến môi trường từ file .env
+load_dotenv()
 
 app = Flask(__name__)
 
-# --- Mô phỏng dữ liệu di chuyển ngẫu nhiên ---
-def generate_taxi_data():
-    taxis = []
-    base_coords = [106.660172, 10.762622]  # trung tâm HCM
-    for i in range(10):
-        lng = base_coords[0] + random.uniform(-0.02, 0.02)
-        lat = base_coords[1] + random.uniform(-0.02, 0.02)
-        taxis.append({
-            "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [lng, lat]},
-            "properties": {"name": f"Taxi #{i+1}"}
-        })
-    return {"type": "FeatureCollection", "features": taxis}
-
-
-@app.route("/")
+@app.route('/')
 def index():
-    # Giao diện chính
-    return send_from_directory("static", "map.html")
+    # Lấy token từ file .env truyền xuống HTML
+    mapbox_token = os.getenv('MAPBOX_TOKEN')
+    return render_template('index.html', mapbox_token=mapbox_token)
 
-
-@app.route("/geojson")
-def geojson():
-    # API trả dữ liệu GeoJSON
-    return jsonify(generate_taxi_data())
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True, port=5000)
