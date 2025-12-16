@@ -16,12 +16,27 @@ def get_schema():
 def create_iceberg_table(spark: SparkSession):
     spark.sql("""CREATE NAMESPACE IF NOT EXISTS lakehouse.cleaned""")
     
+    # spark.sql("""
+    #     CREATE TABLE IF NOT EXISTS lakehouse.cleaned.events (
+    #         id string,
+    #         value double,
+    #         source string,
+    #         created_at string
+    #     )
+    #     USING iceberg
+    # """)
     spark.sql("""
         CREATE TABLE IF NOT EXISTS lakehouse.cleaned.events (
-            id string,
-            value double,
-            source string,
-            created_at string
+            site string,
+            lat double,
+            lon double,
+            time string,
+            temperature float,
+            precipitation float,
+            humidity int,
+            wind_speed float,
+            ingested_at string,
+            type string
         )
         USING iceberg
     """)
@@ -78,7 +93,7 @@ create_iceberg_table(spark)
 raw_df = (
     spark.read
         .format("json")             # or parquet, csv, etc.
-        .schema(raw_data_schema)    # define the schema manually
+        # .schema(raw_data_schema)    # define the schema manually
         .load(f"s3a://{raw_zone_path}/*") # for Spark to track subdirectories of partitioned files
 )
 
