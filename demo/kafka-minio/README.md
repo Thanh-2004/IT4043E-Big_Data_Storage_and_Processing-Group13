@@ -4,6 +4,24 @@
 
 # Data Ingestion Stage: Producer -> Kafka Topics -> Kafka Connect -> MinIO
 
+## Update on running ingestion stage
+
+1. From top-level directory of repo, run
+```
+docker compose -f docker/docker-compose.yaml up -d
+```
+to start the cluster on Docker.
+
+2. Run the following command
+```
+bash demo/kafka-minio/produce.sh demo/kafka-minio
+```
+This script first registers the S3 Sink connector, then runs the `producer.py` program.
+
+3. MinIO default credentials: `minio` - `minio123`
+
+---
+
 ## How to run
 
 1. Clone repo and move to this working directory: from root directory of this repo, run

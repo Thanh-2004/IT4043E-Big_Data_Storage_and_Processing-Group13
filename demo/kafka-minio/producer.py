@@ -10,6 +10,7 @@ import random
 import socket
 from datetime import datetime
 from kafka import KafkaProducer
+import requests
 
 KAFKA_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094")
 TOPIC = os.getenv("KAFKA_TOPIC", "events")
@@ -71,7 +72,13 @@ def main():
     print(f"Connecting to Kafka at {KAFKA_SERVERS} topic={TOPIC}")
     producer = KafkaProducer(
         bootstrap_servers=[KAFKA_SERVERS],
-        value_serializer=lambda v: json.dumps(v).encode("utf-8")
+        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+        key_serializer=lambda k: k.encode('utf-8') if k else None,
+        acks='all',
+        retries=3,
+        batch_size=16384,
+        linger_ms=10,
+        compression_type='gzip',
     )
     print("Starting producer...")
     try:
@@ -94,10 +101,10 @@ def main():
                     "precipitation": current.get("precipitation"),
                     "humidity": current.get("relative_humidity_2m"),
                     "wind_speed": current.get("wind_speed_10m"),
-                    "ingested_at": dt.datetime.utcnow().isoformat() + "Z",
+                    "ingested_at": datetime.utcnow().isoformat() + "Z",
                     "type": "realtime"
                 }
-                producer.send(TOPIC, value=record)
+                producer.send(TOPIC, key=record["site"], value=record)
 
             producer.flush()
             print(f"Data sent to Kafka. Waiting {INTERVAL} seconds...")
