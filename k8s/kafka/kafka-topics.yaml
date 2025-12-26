@@ -1,4 +1,4 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: events
@@ -8,3 +8,6 @@ metadata:
 spec:
   partitions: 3
   replicas: 1 # adjust based on num. of brokers, for small-scale demo use 1
+  config:
+    retention.ms: 7200000 # time that events are stored by brokers; after this duration, clear
+    segment.bytes: 1073741824 # segmentation size of topic data; here, 1GB

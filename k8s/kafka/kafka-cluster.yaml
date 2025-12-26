@@ -1,5 +1,9 @@
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
+# used for specifying pool of Kafka pods with roles
+# replicas: num of pods with this config
+# roles: broker only, controller only, both for dual-role
+# labels: strimzi.io/cluster: <kafka-resource-name>: pods will follow Kafka resource configs under this name
 metadata:
   name: dual-role
   namespace: bigdata-pipeline
@@ -23,7 +27,10 @@ spec:
 apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
-  name: kafka-cluster
+  # a KafkaNodePool use `name` to get configs for Kafka nodes it create
+  # Kafka nodes will be created with this name
+  # specify for topics manifests to create such topics in nodes with given name
+  name: kafka-cluster 
   namespace: bigdata-pipeline
 spec:
   kafka:
