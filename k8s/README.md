@@ -55,4 +55,27 @@ kubectl apply -f namespace.yaml
         
         Can modify name/configs in the yaml file, and can create more yaml files for more topics (or can write configs for new topics in the same file; see the cluster manifest file on how to separate multiple resources in the same file)
     
+- To send messages to Kafka:
+
+    + Context:
+        - Kafka cluster deployed on K8s (assuming with Minikube);
+        - A `producer.py` program that sends messages to Kafka brokers using Kafka Producer client
     
+    + First, expose an external service to Kafka. In `kafka-cluster.yaml`, declare a `loadbalancer` or `nodeport` service under `spec.kafka.listeners` (already present)
+
+    + Since Minikube does not expose an external IP, usual configs/settings to use NodePort or LoadBalancer would fail. Use Minikube commands to use the above external service:
+        - If use NodePort:
+            ```
+            minikube -n bigdata-pipeline service kafka-cluster-kafka-external-bootstrap --url
+            ```
+            This prints out an address that can be used to access the cluster. Usually `localhost:<port>`.
+            
+            (Note that above command assumes the namespace and service name as used in previous parts; make changes as necessary)
+            
+            Idea: the port printed is the local machine's port that is mapped to the Minikube node's port used for the NodePort service.
+        - If use LoadBalancer:
+            ```
+            minikube tunnel
+            ```
+            This allows the use of `localhost` for accessing services inside the cluster.
+        - Note that the `tunnel` or `service` commands of Minikube run as background processes to keep the connection from local machine to cluster open. Run them in a different terminal window.
