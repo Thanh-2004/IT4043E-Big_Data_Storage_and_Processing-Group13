@@ -31,6 +31,8 @@ Details on how to configure resources for the Kafka cluster. Shortcut: `kubectl 
         
         Can modify name/configs in the yaml file, and can create more yaml files for more topics (or can write configs for new topics in the same file; see the cluster manifest file on how to separate multiple resources in the same file)
     
+    + Note: Logically, the services used for the cluster is created first, and only when they are 'ready' can the pods for the cluster be created. Since the services used include LoadBalancers, run `minikube tunnel` to make them ready and the Kafka cluster created.
+    
 - To send messages to Kafka:
 
     + Context:
