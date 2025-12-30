@@ -23,6 +23,14 @@ Configure memory and number of CPUs designated to the cluster. By default (if no
 
 - Refer to README.md in subdirectories for detailed setups for each application
 
+    + Install Helm charts: Strimzi,
+        ```
+        helm repo add strimzi https://strimzi.io/charts/
+        helm repo update
+
+        helm install strimzi-release strimzi/strimzi-kafka-operator --namespace=bigdata-pipeline --create-namespace
+        ```
+
 - Shortcut to run the system: Assuming you are in the top-level directory of this repo, run:
 ```
 kubectl apply -k k8s/
