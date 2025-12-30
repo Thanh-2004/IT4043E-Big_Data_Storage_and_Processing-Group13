@@ -1,0 +1,27 @@
+# Config file for MongoDB demo
+
+mongodb:
+  # Connection URI
+  # Local: mongodb://localhost:27017
+  # Docker: mongodb://mongodb:27017
+  uri: "mongodb://localhost:27017"
+  
+  # Database name
+  database: "weather_demo_db"
+  
+  # Write mode: overwrite hoặc append
+  # overwrite: Xóa collection cũ và ghi mới
+  # append: Thêm vào collection hiện có
+  write_mode: "overwrite"
+  
+  # Có lưu raw data vào MongoDB không (tốn dung lượng)
+  save_raw_data: false
+  
+  # Số lượng records mẫu để lưu (nếu save_raw_data = true)
+  sample_size: 1000
+
+# Spark config
+spark:
+  app_name: "WeatherBatchDemo"
+  shuffle_partitions: 4
+  master: "local[*]"
