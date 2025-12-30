@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: bigdata-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        args:
+          - server
+          - /data
+          - "--console-address=:9001"
+        env:
+          - name: MINIO_ROOT_USER
+            valueFrom:
+              secretKeyRef:
+                name: s3cred
+                key: AWS_ACCESS_KEY_ID
+          - name: MINIO_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: s3cred
+                key: AWS_SECRET_ACCESS_KEY
+        ports:
+          - containerPort: 9000
+          - containerPort: 9001
+        volumeMounts:
+          - name: storage
+            mountPath: /data
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: minio-pvc

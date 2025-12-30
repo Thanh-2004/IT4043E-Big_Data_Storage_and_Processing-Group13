@@ -1,0 +1,33 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnect
+
+metadata:
+  name: s3-sink-connect-cluster
+  namespace: bigdata-pipeline
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+
+spec:
+  version: 4.1.1
+  image: bachthetrollface/kafka-connect-s3:latest # pre-built image with s3 sink connector plugin
+  replicas: 1
+  bootstrapServers: kafka-cluster-kafka-bootstrap:9093
+  groupId: connect-group
+  configStorageTopic: connect-configs
+  statusStorageTopic: connect-status
+  offsetStorageTopic: connect-offsets
+  tls:
+    trustedCertificates:
+      - secretName: kafka-cluster-cluster-ca-cert
+        pattern: "*.crt"
+  config:
+    # -1 means it will use the default replication factor configured in the broker
+    config.storage.replication.factor: -1
+    offset.storage.replication.factor: -1
+    status.storage.replication.factor: -1
+
+    # key.converter: org.apache.kafka.connect.json.JsonConverter ############# default, dont need to change
+    key.converter: org.apache.kafka.connect.storage.StringConverter 
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: false

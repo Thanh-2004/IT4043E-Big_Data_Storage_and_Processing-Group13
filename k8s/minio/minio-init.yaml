@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init-buckets
+  namespace: bigdata-pipeline
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
+          env:
+            - name: MINIO_ROOT_USER
+              value: minioadmin
+            - name: MINIO_ROOT_PASSWORD
+              value: minioadmin123
+          command:
+            - /bin/sh
+            - -c
+            - |
+              sleep 10
+              mc alias set local http://minio-internal-service:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
+              mc mb -p local/raw-zone
+              mc mb -p local/warehouse

@@ -1,0 +1,4 @@
+resources:
+  - kafka-connect-topics.yaml
+  - kafka-connect.yaml
+  - s3-sink-connector.yaml

@@ -1,0 +1,60 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+# used for specifying pool of Kafka pods with roles
+# replicas: num of pods with this config
+# roles: broker only, controller only, both for dual-role
+# labels: strimzi.io/cluster: <kafka-resource-name>: pods will follow Kafka resource configs under this name
+metadata:
+  name: dual-role
+  namespace: bigdata-pipeline
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  replicas: 1
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 1Gi
+        deleteClaim: false
+        kraftMetadata: shared
+---
+
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  # a KafkaNodePool use `name` to get configs for Kafka nodes it create
+  # Kafka nodes will be created with this name
+  # specify for topics manifests to create such topics in nodes with given name
+  name: kafka-cluster 
+  namespace: bigdata-pipeline
+spec:
+  kafka:
+    version: 4.1.1
+    metadataVersion: 4.1-IV1
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+      - name: external
+        port: 9094
+        type: loadbalancer
+        tls: false
+    config:
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
