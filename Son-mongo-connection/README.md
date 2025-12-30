@@ -1,134 +1,210 @@
-# MongoDB Demo - Batch Processing Weather Data
+# MongoDB Demo - PySpark Batch & Stream Processing
 
-Demo batch processing dữ liệu thời tiết từ CSV vào MongoDB sử dụng PySpark.
+Demo xử lý dữ liệu thời tiết vào MongoDB với PySpark - hỗ trợ cả Batch và Stream processing.
 
 ## Files
 
-- `batch_mongo.py` - Script chính xử lý batch
-- `config.yaml` - File cấu hình MongoDB và Spark
-- `weather_history_2000-01-01_2025-12-05.csv` - Dữ liệu thời tiết lịch sử
-- `docker-compose.demo.yaml` - Docker compose để chạy MongoDB standalone
+- `batch_mongo.py` - Batch processing (one-time execution)
+- `stream_mongo.py` - Stream processing (continuous execution)
+- `config.yaml` - Cấu hình MongoDB và Spark
+- `weather_history_2000-01-01_2025-12-05.csv` - Dữ liệu thời tiết
+- `docker-compose.demo.yaml` - Docker MongoDB
 
-## Cách chạy
-$env:PYSPARK_PYTHON = "C:\Users\Admin\AppData\Local\Programs\Python\Python311\python.exe"                           
+## Quick Start
 
-$env:PYSPARK_DRIVER_PYTHON = "C:\Users\Admin\AppData\Local\Programs\Python\Python311\python.exe" 
-
-### Option 1: Chạy local (MongoDB đã có sẵn)
+### 1. Setup Environment (Windows)
 
 ```powershell
-# Cài đặt dependencies
+$env:PYSPARK_PYTHON = "C:\Users\Admin\AppData\Local\Programs\Python\Python311\python.exe"
+$env:PYSPARK_DRIVER_PYTHON = "C:\Users\Admin\AppData\Local\Programs\Python\Python311\python.exe"
 pip install pyspark pymongo pyyaml
-
-# Đảm bảo MongoDB đang chạy trên localhost:27017
-# Nếu MongoDB chưa chạy, xem Option 2
-
-# Chạy script
-spark-submit --packages org.mongodb.spark:mongo-spark-connector_2.12:10.3.0 batch_mongo.py
 ```
 
-### Option 2: Chạy với Docker Compose
+### 2. Start MongoDB
 
 ```powershell
-# Khởi động MongoDB
-cd demo
 docker-compose -f docker-compose.demo.yaml up -d
+```
 
-# Đợi MongoDB khởi động (5-10 giây)
-timeout 10
+### 3. Run Processing
 
-# Chạy script
+**Batch Mode** (chạy 1 lần rồi dừng):
+```powershell
 spark-submit --packages org.mongodb.spark:mongo-spark-connector_2.12:10.3.0 batch_mongo.py
 ```
 
-### Option 3: Chạy hoàn toàn trong Docker
-
+**Stream Mode** (chạy liên tục):
 ```powershell
-cd demo
-docker-compose -f docker-compose.demo.yaml up
+spark-submit --packages org.mongodb.spark:mongo-spark-connector_2.12:10.3.0 stream_mongo.py
+
+# Terminal khác: Copy file vào để trigger
+cp weather_history_2000-01-01_2025-12-05.csv input_stream/test.csv
 ```
 
-## Kết quả
+## Stream Processing - Chi tiết
 
-Script sẽ tạo các collections trong database `weather_demo_db`:
-
-1. **yearly_summary** - Thống kê theo năm
-   - avg_temperature, max_temperature, min_temperature
-   - avg_humidity, total_precipitation
-   - avg_wind_speed, record_count
-
-2. **monthly_summary** - Thống kê theo tháng
-   - Tương tự yearly nhưng chi tiết hơn
-
-3. **hottest_days** - Top 10 ngày nóng nhất
-
-4. **raw_weather_data** (optional) - Dữ liệu mẫu gốc
-
-## Kiểm tra kết quả
-
-### Option 1: Dùng Mongo Express Web UI (Đơn giản nhất!)
-
-1. Khởi động Mongo Express:
+### Bước 1: Khởi động stream
 ```powershell
-docker-compose -f docker-compose.demo.yaml up -d mongo-express
+# Chạy stream (sẽ chờ file mới liên tục)
+spark-submit --packages org.mongodb.spark:mongo-spark-connector_2.12:10.3.0 stream_mongo.py
 ```
 
-2. Mở trình duyệt: **http://localhost:8081**
+Output sẽ hiển thị:
+```
+============================================================
+DEMO: Stream Processing Weather Data to MongoDB
+============================================================
+[STREAM] Input Directory: C:\...\input_stream
+[CHECKPOINT] Directory: C:\...\checkpoints
+[MONGO] URI: mongodb://localhost:27017
+[DB] Database: weather_demo_db
+============================================================
+[INFO] Waiting for new CSV files in input_stream folder...
+[INFO] Copy CSV files to input_stream folder to process
+[INFO] Press Ctrl+C to stop streaming
+============================================================
+```
 
-3. Đăng nhập:
-   - Username: `admin`
-   - Password: `admin123`
+### Bước 2: Trigger processing (Terminal mới)
 
-4. Click vào database `weather_demo_db` để xem các collections
+**Option 1 - Copy file gốc:**
+```powershell
+cp weather_history_2000-01-01_2025-12-05.csv input_stream/data1.csv
+```
 
-### Option 2: Dùng MongoDB Compass
+**Option 2 - Copy subset nhỏ để test:**
+```powershell
+# Lấy 1000 dòng đầu
+Get-Content weather_history_2000-01-01_2025-12-05.csv -TotalCount 1000 | Set-Content input_stream/small.csv
+```
 
-1. Kết nối: `mongodb://localhost:27017`
-2. Chọn database: `weather_demo_db`
-3. Xem các collections
+**Option 3 - Simulate real-time data:**
+```powershell
+# Copy nhiều file nhỏ liên tục
+for ($i=1; $i -le 5; $i++) {
+    Get-Content weather_history_2000-01-01_2025-12-05.csv -TotalCount 500 | Set-Content "input_stream/batch_$i.csv"
+    Start-Sleep -Seconds 15
+}
+```
 
-### Option 3: Dùng mongosh (Command line)
+### Bước 3: Monitor output
 
+Terminal stream sẽ hiển thị:
+```
+[BATCH 0] Written 999 records to stream_raw_data
+[BATCH 0] Updated yearly aggregations
+[BATCH 0] Updated monthly aggregations
+[BATCH 0] Updated hourly windowed aggregations
+```
+
+### Bước 4: Stop stream
+
+Nhấn `Ctrl+C` trong terminal đang chạy stream:
+```
+^C
+[STOP] Stopping all streams...
+[OK] All streams stopped successfully!
+============================================================
+```
+
+### Useful Commands
+
+**Check processed files:**
+```powershell
+ls input_stream/
+```
+
+**Clear input folder:**
+```powershell
+Remove-Item input_stream/*.csv
+```
+
+**Reset checkpoint (chạy lại từ đầu):**
+```powershell
+# Dừng stream trước (Ctrl+C)
+Remove-Item -Recurse -Force checkpoints/*
+# Chạy lại stream
+```
+
+**Monitor MongoDB real-time:**
+```powershell
+# Terminal riêng
+mongosh mongodb://localhost:27017
+use weather_demo_db
+# Chạy liên tục để xem count tăng
+while(true) { 
+    print(new Date(), "- Raw:", db.stream_raw_data.countDocuments()); 
+    sleep(3000); 
+}
+```
+
+## Batch vs Stream
+
+| | Batch | Stream |
+|---|---|---|
+| **Execution** | One-time | Continuous |
+| **Input** | Full CSV file | Files in `input_stream/` |
+| **Output Collections** | yearly_summary<br>monthly_summary<br>hottest_days | stream_raw_data<br>stream_yearly_summary<br>stream_monthly_summary<br>stream_hourly_summary |
+| **Write Mode** | Overwrite/Append | Append only |
+| **Checkpointing** | ❌ | ✅ (in `checkpoints/`) |
+| **Use Case** | Historical analysis | Real-time monitoring |
+
+## Collections Created
+
+### Batch Collections
+- `yearly_summary` - Thống kê theo năm
+- `monthly_summary` - Thống kê theo tháng  
+- `hottest_days` - Top 10 ngày nóng nhất
+
+### Stream Collections
+- `stream_raw_data` - Raw data (trigger: 10s)
+- `stream_yearly_summary` - Yearly agg (trigger: 30s)
+- `stream_monthly_summary` - Monthly agg (trigger: 30s)
+- `stream_hourly_summary` - Hourly windows (trigger: 30s, watermark: 2h)
+
+## Check Results
+
+**Mongo Express** (Web UI): http://localhost:8081
+- Username: `admin` / Password: `admin123`
+
+**MongoDB Compass**: `mongodb://localhost:27017`
+
+**mongosh**:
 ```bash
 mongosh mongodb://localhost:27017
-
 use weather_demo_db
 db.yearly_summary.find().pretty()
-db.monthly_summary.find().limit(5).pretty()
-db.hottest_days.find().pretty()
+db.stream_raw_data.countDocuments()
 ```
 
-## Cấu hình
+## Configuration
 
-Sửa file `config.yaml`:
+Edit `config.yaml`:
 
 ```yaml
 mongodb:
-  uri: "mongodb://localhost:27017"  # Đổi nếu MongoDB khác host
-  database: "weather_demo_db"       # Đổi tên database
-  write_mode: "overwrite"           # overwrite hoặc append
-  save_raw_data: false              # true để lưu raw data
-  sample_size: 1000                 # Số records mẫu nếu save_raw_data=true
+  uri: "mongodb://localhost:27017"
+  database: "weather_demo_db"
+  write_mode: "overwrite"  # batch only
+  save_raw_data: false
+  sample_size: 1000
 ```
 
 ## Troubleshooting
 
-### Lỗi: Cannot connect to MongoDB
-
-```
-Kiểm tra MongoDB đang chạy:
+**MongoDB không connect được:**
+```powershell
 docker ps | grep mongodb
 ```
 
-### Lỗi: Spark connector not found
-
+**Reset stream checkpoints:**
 ```powershell
-# Đảm bảo có --packages khi chạy
-spark-submit --packages org.mongodb.spark:mongo-spark-connector_2.12:10.3.0 batch_mongo.py
+Remove-Item -Recurse -Force checkpoints/*
 ```
 
-### Lỗi: Module yaml not found
-
-```powershell
-pip install pyyaml
+**Xóa collections:**
+```bash
+mongosh mongodb://localhost:27017
+use weather_demo_db
+db.dropDatabase()
 ```
