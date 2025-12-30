@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Weather History Map</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .controls {
+            position: absolute; top: 10px; left: 10px; background: white;
+            padding: 15px; z-index: 10; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            width: 300px;
+        }
+        input[type=range] { width: 100%; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h3>Lịch sử Nhiệt độ (MongoDB)</h3>
+    <input type="date" id="history-date">
+    <button id="btn-load-history">Tải dữ liệu</button>
+    <hr>
+    <div id="history-time-display">Vui lòng chọn ngày</div>
+    <input type="range" id="hour-slider" min="0" max="23" value="0">
+    <button id="btn-play-history"><i class="fa-solid fa-play"></i> Chạy</button>
+</div>
+
+<div id="map"></div>
+
+<script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoibnR0aGFuaDA4MDMiLCJhIjoiY21oeDJmZzZ5MDY2NjJsb3VmMmw2cnZvbiJ9.SidifhDOD6tL4x_qYkjEBw'; // <-- Thay token của bạn vào đây
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/dark-v10',
+        center: [105.8, 21.0],
+        zoom: 5
+    });
+
+    // --- CODE JS CỦA BẠN (Đã sửa đổi) ---
+    const HistoryManager = {
+        map: null,
+        dataCache: [],
+        currentHour: 0,
+        timer: null,
+        isPlaying: false,
+
+        init: function(mapInstance) {
+            this.map = mapInstance;
+            this.setupControls();
+            
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            document.getElementById('history-date').value = yesterday.toISOString().split('T')[0];
+        },
+
+        fetchHistoryData: function(dateStr) {
+            this.stopAnimation();
+            document.getElementById('history-time-display').innerText = "Đang lấy dữ liệu từ Server...";
+
+            // GỌI API BACKEND CỦA MÌNH
+            fetch(`http://localhost:3000/api/history?date=${dateStr}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data || data.length === 0) {
+                        alert("Chưa có dữ liệu ngày này trong Database. Hãy chạy script importData.js trước!");
+                        document.getElementById('history-time-display').innerText = "Không có dữ liệu.";
+                        return;
+                    }
+                    this.processData(data);
+                    document.getElementById('history-time-display').innerText = `Đã tải xong ngày ${dateStr}`;
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('history-time-display').innerText = "Lỗi kết nối Server!";
+                });
+        },
+
+        processData: function(dbResponse) {
+            this.dataCache = []; 
+            for (let hour = 0; hour < 24; hour++) {
+                const features = dbResponse.map((record) => {
+                    return {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [record.location.lon, record.location.lat]
+                        },
+                        "properties": {
+                            "temperature": record.hourly_temps[hour]
+                        }
+                    };
+                });
+                this.dataCache.push({ "type": "FeatureCollection", "features": features });
+            }
+            this.currentHour = 0;
+            document.getElementById('hour-slider').value = 0;
+            this.drawLayer(this.dataCache[0]);
+            this.startAnimation();
+        },
+
+        drawLayer: function(geoJson) {
+            if (this.map.getLayer('history-heat-layer')) this.map.removeLayer('history-heat-layer');
+            if (this.map.getSource('history-heat-source')) this.map.removeSource('history-heat-source');
+
+            this.map.addSource('history-heat-source', { type: 'geojson', data: geoJson });
+
+            this.map.addLayer({
+                id: 'history-heat-layer',
+                type: 'circle',
+                source: 'history-heat-source',
+                paint: {
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 20, 10, 50],
+                    'circle-blur': 0.8,
+                    'circle-opacity': 0.7,
+                    'circle-color': [
+                        'interpolate', ['linear'], ['get', 'temperature'],
+                        10, '#3696e1', 20, '#66ff66', 30, '#ff9933', 40, '#ff3333'
+                    ]
+                }
+            });
+            const dateStr = document.getElementById('history-date').value;
+            document.getElementById('history-time-display').innerHTML = `Thời gian: <strong>${this.currentHour}:00</strong> ngày ${dateStr}`;
+        },
+
+        startAnimation: function() {
+            this.isPlaying = true;
+            document.getElementById('btn-play-history').innerHTML = '<i class="fa-solid fa-pause"></i> Dừng';
+            if (this.timer) clearInterval(this.timer);
+            this.timer = setInterval(() => {
+                if (!this.isPlaying) return;
+                this.currentHour = (this.currentHour + 1) % 24;
+                document.getElementById('hour-slider').value = this.currentHour;
+                
+                const source = this.map.getSource('history-heat-source');
+                if (source && this.dataCache[this.currentHour]) {
+                    source.setData(this.dataCache[this.currentHour]);
+                    const dateStr = document.getElementById('history-date').value;
+                    document.getElementById('history-time-display').innerHTML = `Thời gian: <strong>${this.currentHour}:00</strong> ngày ${dateStr}`;
+                }
+            }, 500);
+        },
+
+        stopAnimation: function() {
+            this.isPlaying = false;
+            document.getElementById('btn-play-history').innerHTML = '<i class="fa-solid fa-play"></i> Chạy';
+            clearInterval(this.timer);
+        },
+
+        setupControls: function() {
+            document.getElementById('btn-load-history').addEventListener('click', () => {
+                const dateVal = document.getElementById('history-date').value;
+                if (dateVal) this.fetchHistoryData(dateVal);
+            });
+            document.getElementById('btn-play-history').addEventListener('click', () => {
+                this.isPlaying ? this.stopAnimation() : this.startAnimation();
+            });
+            document.getElementById('hour-slider').addEventListener('input', (e) => {
+                this.stopAnimation();
+                this.currentHour = parseInt(e.target.value);
+                const source = this.map.getSource('history-heat-source');
+                if (source && this.dataCache[this.currentHour]) source.setData(this.dataCache[this.currentHour]);
+            });
+        }
+    };
+
+    map.on('load', () => {
+        HistoryManager.init(map);
+    });
+</script>
+
+</body>
+</html>
