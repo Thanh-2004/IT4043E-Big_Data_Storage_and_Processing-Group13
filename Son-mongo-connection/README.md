@@ -10,6 +10,9 @@ Demo batch processing dữ liệu thời tiết từ CSV vào MongoDB sử dụn
 - `docker-compose.demo.yaml` - Docker compose để chạy MongoDB standalone
 
 ## Cách chạy
+$env:PYSPARK_PYTHON = "C:\Users\Admin\AppData\Local\Programs\Python\Python311\python.exe"                           
+
+$env:PYSPARK_DRIVER_PYTHON = "C:\Users\Admin\AppData\Local\Programs\Python\Python311\python.exe" 
 
 ### Option 1: Chạy local (MongoDB đã có sẵn)
 
@@ -21,7 +24,6 @@ pip install pyspark pymongo pyyaml
 # Nếu MongoDB chưa chạy, xem Option 2
 
 # Chạy script
-cd demo
 spark-submit --packages org.mongodb.spark:mongo-spark-connector_2.12:10.3.0 batch_mongo.py
 ```
 

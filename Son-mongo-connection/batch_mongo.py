@@ -44,11 +44,10 @@ spark = (
     .config("spark.sql.shuffle.partitions", "4")
     .master("local[*]")  # Chạy local mode
     .getOrCreate()
-    .getOrCreate()
 )
 spark.sparkContext.setLogLevel("WARN")
 print("[OK] Spark Session created successfully!")
-ding CSV file...")
+print("[DATA] Reading CSV file...")
 df = (
     spark.read
     .option("header", "true")
@@ -58,6 +57,7 @@ df = (
 
 # Chuyển đổi tên cột và kiểu dữ liệu
 print("[PROCESS] Processing data...")
+df = df \
     .withColumnRenamed("Temperature (°C)", "temperature") \
     .withColumnRenamed("Precipitation (mm)", "precipitation") \
     .withColumnRenamed("Humidity (%)", "humidity") \
@@ -70,8 +70,6 @@ df = df.withColumn("year", F.year("datetime"))
 df = df.withColumn("month", F.month("datetime"))
 
 # Cache để tăng tốc
-df.cache()
-total_records = df.count()
 df.cache()
 total_records = df.count()
 print(f"[OK] Loaded {total_records:,} records")
@@ -102,7 +100,7 @@ try:
     )
     print("[OK] Yearly statistics written successfully!")
 except Exception as e:
-    print(f"[ERROR] Error writing yearly stati
+    print(f"[ERROR] Error writing yearly statistics: {e}")
 
 # ============================================
 # Batch Processing 2: Tính toán theo tháng
@@ -128,6 +126,7 @@ try:
         .option("spark.mongodb.connection.uri", MONGODB_URI)
         .option("spark.mongodb.database", MONGODB_DATABASE)
         .option("spark.mongodb.collection", "monthly_summary")
+        .save()
     )
     print("[OK] Monthly statistics written successfully!")
 except Exception as e:
@@ -143,6 +142,7 @@ hottest_days = (
     )
     .orderBy(F.desc("max_temp"))
     .limit(10)
+)
 
 # Ghi vào MongoDB collection: hottest_days
 print("\n[WRITE] Writing hottest days to MongoDB...")
@@ -157,6 +157,7 @@ try:
         .save()
     )
     print("[OK] Hottest days written successfully!")
+except Exception as e:
     print(f"[ERROR] Error writing hottest days: {e}")
 
 # ============================================
@@ -171,6 +172,9 @@ if config['mongodb'].get('save_raw_data', False):
             sample_df.write
             .format("mongodb")
             .mode("overwrite")
+            .option("spark.mongodb.connection.uri", MONGODB_URI)
+            .option("spark.mongodb.database", MONGODB_DATABASE)
+            .option("spark.mongodb.collection", "raw_weather_data")
             .save()
         )
         print("[OK] Sample raw data written successfully!")
