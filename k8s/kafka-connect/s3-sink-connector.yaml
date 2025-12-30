@@ -1,0 +1,52 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnector
+
+metadata:
+  name: minio-sink-connector
+  namespace: bigdata-pipeline
+  labels:
+    strimzi.io/cluster: s3-sink-connect-cluster # Name of your KafkaConnect cluster (specified in metadata)
+
+spec:
+  class: io.confluent.connect.s3.S3SinkConnector
+  tasksMax: 3
+  config:
+    topics: events
+
+    s3.region: "us-east-1"
+    s3.bucket.name: raw-zone
+
+    s3.endpoint: http://minio-internal-service:9000
+    s3.path.style.access: true
+    s3.force.path.style: true
+
+    store.url: http://minio-internal-service:9000
+    path.style.access.enabled: true
+    
+    # s3 credentials
+    aws.access.key.id: minioadmin
+    aws.secret.access.key: minioadmin123
+    # try using from secrets (centralized) ##################################################
+    # aws.access.key.id:
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: s3cred
+    #       key: AWS_ACCESS_KEY_ID
+    # aws.secret.access.key:
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: s3cred
+    #       key: AWS_SECRET_ACCESS_KEY
+
+    storage.class: io.confluent.connect.s3.storage.S3Storage
+    format.class: io.confluent.connect.s3.format.json.JsonFormat
+
+    # key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter: org.apache.kafka.connect.storage.StringConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
+
+    flush.size: 20
+
+    schema.compatibility: NONE

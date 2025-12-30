@@ -3,3 +3,4 @@ resources:
   - ./secrets/
   - ./kafka/
   - ./minio/
+  - ./kafka-connect/
