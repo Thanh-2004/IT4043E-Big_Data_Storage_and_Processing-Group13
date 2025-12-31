@@ -1,0 +1,83 @@
+# 1. System Config
+executor: LocalExecutor
+
+# 2. Version & Dependencies
+images:
+  airflow:
+    repository: apache/airflow
+    tag: 2.10.4
+extraPipPackages:
+  - "apache-airflow-providers-apache-spark==4.7.0"
+  - "psycopg2-binary==2.9.9"
+
+# 3. Database Connection (FIXED: Full Hostname)
+postgresql:
+  enabled: false
+data:
+  metadataConnection:
+    user: db_user
+    pass: userpass
+    host: postgres.default.svc.cluster.local
+    port: 5432
+    db: airflow_db
+    protocol: postgresql
+
+# 4. Webserver Config (FIXED: Indentation & Volumes)
+webserver:
+  enabled: true
+  service:
+    type: NodePort
+    ports:
+      - name: airflow-ui
+        port: 8080
+        targetPort: 8080
+        nodePort: 30000
+  
+  # Mount DAGs to the container
+  extraVolumeMounts:
+    - name: local-dags
+      mountPath: /opt/airflow/dags
+    - name: spark-jobs
+      mountPath: /opt/airflow/spark_jobs
+
+  # Define where DAGs come from (Must be inside webserver)
+  extraVolumes:
+    - name: local-dags
+      hostPath:
+        path: /opt/airflow/dags
+        type: Directory
+    - name: spark-jobs
+      hostPath:
+        path: /opt/spark/jobs
+        type: Directory
+
+# 5. Scheduler Config (FIXED: Added extraVolumes)
+scheduler:
+  extraVolumeMounts:
+    - name: local-dags
+      mountPath: /opt/airflow/dags
+    - name: spark-jobs
+      mountPath: /opt/airflow/spark_jobs
+  
+  # Define where DAGs come from (Must be inside scheduler too)
+  extraVolumes:
+    - name: local-dags
+      hostPath:
+        path: /opt/airflow/dags
+        type: Directory
+    - name: spark-jobs
+      hostPath:
+        path: /opt/spark/jobs
+        type: Directory
+
+# 6. Global Environment Variables
+env:
+  - name: AIRFLOW_CONN_SPARK_STANDALONE
+    value: "spark://spark-master-svc.default.svc.cluster.local:7077"
+
+# 7. Cleanup
+dags:
+  persistence:
+    enabled: false
+  gitSync:
+    enabled: false

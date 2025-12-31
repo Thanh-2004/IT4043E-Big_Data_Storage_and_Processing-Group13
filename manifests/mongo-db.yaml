@@ -1,0 +1,29 @@
+apiVersion: mongodbcommunity.mongodb.com/v1
+kind: MongoDBCommunity
+metadata:
+  name: mongo
+spec:
+  members: 1
+  type: ReplicaSet
+  version: "7.0.5"
+  security:
+    authentication:
+      modes: ["SCRAM"]
+  users:
+    - name: app_user
+      db: admin
+      passwordSecretRef:
+        name: mongo-user-password
+      roles:
+        - name: root
+          db: admin
+      scramCredentialsSecretName: my-scram
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-user-password
+type: Opaque
+stringData:
+  password: "app_user_pass"
+i have a mongo-db already

@@ -1,0 +1,21 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    # 1. MOUNTS: Syncs your local code into the cluster nodes
+    extraMounts:
+      - hostPath: ./src/spark/jobs
+        containerPath: /opt/spark/jobs
+      - hostPath: ./src/airflow/dags
+        containerPath: /opt/airflow/dags
+    
+    # 2. PORTS: Exposes cluster services to localhost
+    extraPortMappings:
+      # Airflow Webserver (localhost:8080 -> NodePort 30000)
+      - containerPort: 30000
+        hostPort: 8080
+        listenAddress: "0.0.0.0"
+      # Spark Master UI (localhost:8081 -> NodePort 30001)
+      - containerPort: 30001
+        hostPort: 8081
+        listenAddress: "0.0.0.0"
