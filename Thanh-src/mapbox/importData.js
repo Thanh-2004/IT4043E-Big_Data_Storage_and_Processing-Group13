@@ -19,7 +19,7 @@ async function importData(dateStr) {
         // Tạo URL request cho toàn bộ Grid
         const lats = GRID.map(p => p.lat).join(',');
         const lons = GRID.map(p => p.lon).join(',');
-        const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lats}&longitude=${lons}&start_date=${dateStr}&end_date=${dateStr}&hourly=temperature_2m&timezone=auto`;
+        const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lats}&longitude=${lons}&start_date=${dateStr}&end_date=${dateStr}&hourly=temperature_2m,rain,cloudcover,windspeed_10m&timezone=auto`;
 
         const response = await axios.get(url);
         let results = response.data;
@@ -32,11 +32,12 @@ async function importData(dateStr) {
         const docs = results.map((item, index) => {
             return {
                 date: dateStr,
-                location: {
-                    lat: GRID[index].lat,
-                    lon: GRID[index].lon
-                },
-                hourly_temps: item.hourly.temperature_2m
+                location: { lat: GRID[index].lat, lon: GRID[index].lon },
+                hourly_temps: item.hourly.temperature_2m,
+                // --- MAP DỮ LIỆU MỚI ---
+                hourly_rain: item.hourly.rain,
+                hourly_clouds: item.hourly.cloudcover,
+                hourly_wind: item.hourly.windspeed_10m
             };
         });
 

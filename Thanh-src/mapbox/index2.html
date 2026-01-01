@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Weather History Dashboard</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        /* UI Control Panel */
+        .controls {
+            position: absolute; top: 20px; left: 20px; background: rgba(255, 255, 255, 0.95);
+            padding: 20px; z-index: 10; border-radius: 12px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            width: 320px; backdrop-filter: blur(5px);
+        }
+        
+        h3 { margin-top: 0; color: #333; font-size: 1.2rem; margin-bottom: 15px; }
+
+        /* Tabs Style */
+        .tab-container {
+            display: flex; justify-content: space-between; margin-bottom: 15px;
+            background: #eee; border-radius: 8px; padding: 4px;
+        }
+        .tab-btn {
+            flex: 1; border: none; background: transparent; padding: 8px 0;
+            cursor: pointer; font-size: 16px; color: #666; border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { background: #ddd; }
+        .tab-btn.active {
+            background: white; color: #007bff; font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* Inputs & Buttons */
+        input[type=date] {
+            width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px;
+            margin-bottom: 10px; box-sizing: border-box;
+        }
+        button.action-btn {
+            width: 100%; padding: 10px; border: none; border-radius: 6px;
+            cursor: pointer; font-weight: bold; margin-bottom: 10px;
+            transition: background 0.2s;
+        }
+        #btn-load-history { background: #007bff; color: white; }
+        #btn-load-history:hover { background: #0056b3; }
+        #btn-play-history { background: #28a745; color: white; }
+        #btn-play-history:hover { background: #1e7e34; }
+
+        /* Slider */
+        input[type=range] { width: 100%; margin: 15px 0; cursor: pointer; }
+        
+        .info-text { font-size: 0.9rem; color: #555; margin-bottom: 5px; }
+        #history-time-display { font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h3>Dữ liệu Thời tiết Lịch sử</h3>
+    
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="App.UIManager.switchTab('temp')" title="Nhiệt độ"><i class="fa-solid fa-temperature-half"></i></button>
+        <button class="tab-btn" onclick="App.UIManager.switchTab('rain')" title="Lượng mưa"><i class="fa-solid fa-cloud-rain"></i></button>
+        <button class="tab-btn" onclick="App.UIManager.switchTab('cloud')" title="Mây"><i class="fa-solid fa-cloud"></i></button>
+        <button class="tab-btn" onclick="App.UIManager.switchTab('wind')" title="Gió"><i class="fa-solid fa-wind"></i></button>
+    </div>
+
+    <input type="date" id="history-date">
+    <button id="btn-load-history" class="action-btn">Tải dữ liệu</button>
+    
+    <hr style="border: 0; border-top: 1px solid #ddd; margin: 15px 0;">
+    
+    <div class="info-text">Thời gian: <span id="history-time-display">--:--</span></div>
+    <div class="info-text">Chế độ: <strong id="mode-display" style="color:#007bff">Nhiệt độ</strong></div>
+    
+    <input type="range" id="hour-slider" min="0" max="23" value="0">
+    <button id="btn-play-history" class="action-btn"><i class="fa-solid fa-play"></i> Chạy Animation</button>
+</div>
+
+<div id="map"></div>
+
+<script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoibnR0aGFuaDA4MDMiLCJhIjoiY21oeDJmZzZ5MDY2NjJsb3VmMmw2cnZvbiJ9.SidifhDOD6tL4x_qYkjEBw';
+
+    // --- MODULE 1: APP CONFIGURATION ---
+    const AppConfig = {
+        // Cấu hình hiển thị cho từng loại dữ liệu
+        MODES: {
+            'temp': {
+                name: 'Nhiệt độ (°C)',
+                dataKey: 'hourly_temps', // Tên trường trong MongoDB
+                colors: [
+                    'interpolate', ['linear'], ['get', 'value'],
+                    0, '#2c003e', 10, '#3696e1', 20, '#66ff66', 30, '#ff9933', 40, '#ff3333'
+                ]
+            },
+            'rain': {
+                name: 'Lượng mưa (mm)',
+                dataKey: 'hourly_rain', // Cần update Backend để có field này
+                colors: [
+                    'interpolate', ['linear'], ['get', 'value'],
+                    0, 'rgba(0,0,0,0)', 0.1, '#a6dcef', 5, '#2196f3', 20, '#0d47a1'
+                ]
+            },
+            'cloud': {
+                name: 'Độ phủ mây (%)',
+                dataKey: 'hourly_clouds', // Cần update Backend để có field này
+                colors: [
+                    'interpolate', ['linear'], ['get', 'value'],
+                    0, 'rgba(0,0,0,0)', 20, '#e3f2fd', 100, '#607d8b'
+                ]
+            },
+            'wind': {
+                name: 'Tốc độ gió (km/h)',
+                dataKey: 'hourly_wind', // Cần update Backend để có field này
+                colors: [
+                    'interpolate', ['linear'], ['get', 'value'],
+                    0, 'rgba(0,255,0,0.1)', 10, '#8bc34a', 30, '#ffeb3b', 60, '#f44336'
+                ]
+            }
+        }
+    };
+
+    // --- MODULE 2: DATA MANAGER (Xử lý dữ liệu) ---
+    const DataManager = {
+        rawData: [], // Dữ liệu gốc từ API
+        processedCache: [], // Dữ liệu đã chia theo giờ
+        currentMode: 'temp',
+
+        fetchData: async function(dateStr) {
+            try {
+                // Gọi API Backend
+                const response = await fetch(`http://localhost:3000/api/history?date=${dateStr}`);
+                const data = await response.json();
+                
+                if (!data || data.length === 0) {
+                    throw new Error("No data found");
+                }
+                this.rawData = data;
+                this.processData(); // Xử lý dữ liệu dựa trên Mode hiện tại
+                return true;
+            } catch (error) {
+                console.error(error);
+                return false;
+            }
+        },
+
+        processData: function() {
+            this.processedCache = [];
+            const key = AppConfig.MODES[this.currentMode].dataKey;
+            
+            // Loop 24h
+            for (let hour = 0; hour < 24; hour++) {
+                const features = this.rawData.map(record => {
+                    // Lấy giá trị dựa trên Key (temp, rain, v.v.)
+                    // Fallback về 0 nếu dữ liệu chưa có trong DB
+                    const val = (record[key] && record[key][hour]) ? record[key][hour] : 0;
+                    
+                    return {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [record.location.lon, record.location.lat]
+                        },
+                        "properties": {
+                            "value": val 
+                        }
+                    };
+                });
+                this.processedCache.push({ "type": "FeatureCollection", "features": features });
+            }
+        },
+
+        setMode: function(mode) {
+            if (AppConfig.MODES[mode]) {
+                this.currentMode = mode;
+                if (this.rawData.length > 0) {
+                    this.processData(); // Xử lý lại dữ liệu khi đổi tab
+                }
+            }
+        },
+
+        getDataAtHour: function(hour) {
+            return this.processedCache[hour];
+        }
+    };
+
+    // --- MODULE 3: MAP MANAGER (Vẽ bản đồ) ---
+    const MapManager = {
+        map: null,
+        
+        init: function() {
+            this.map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/dark-v10',
+                center: [105.8, 21.0],
+                zoom: 5
+            });
+            
+            this.map.on('load', () => App.start());
+        },
+
+        drawLayer: function(geoJson, mode) {
+            const layerId = 'weather-layer';
+            const sourceId = 'weather-source';
+
+            // Xóa layer cũ nếu tồn tại
+            if (this.map.getLayer(layerId)) this.map.removeLayer(layerId);
+            if (this.map.getSource(sourceId)) this.map.removeSource(sourceId);
+
+            this.map.addSource(sourceId, { type: 'geojson', data: geoJson });
+
+            this.map.addLayer({
+                id: layerId,
+                type: 'circle',
+                source: sourceId,
+                paint: {
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 20, 10, 60],
+                    'circle-blur': 0.6,
+                    'circle-opacity': 0.75,
+                    'circle-color': AppConfig.MODES[mode].colors // Lấy bảng màu từ Config
+                }
+            }, 'waterway-label');
+        },
+
+        updateData: function(geoJson) {
+            const source = this.map.getSource('weather-source');
+            if (source) source.setData(geoJson);
+        }
+    };
+
+    // --- MODULE 4: UI MANAGER (Điều khiển giao diện) ---
+    const UIManager = {
+        currentHour: 0,
+        timer: null,
+        isPlaying: false,
+
+        init: function() {
+            // Setup Date Input
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            document.getElementById('history-date').value = yesterday.toISOString().split('T')[0];
+
+            // Event Listeners
+            document.getElementById('btn-load-history').addEventListener('click', () => this.handleLoad());
+            document.getElementById('btn-play-history').addEventListener('click', () => this.togglePlay());
+            
+            document.getElementById('hour-slider').addEventListener('input', (e) => {
+                this.stopAnimation();
+                this.updateHour(parseInt(e.target.value));
+            });
+        },
+
+        switchTab: function(mode) {
+            // Update UI Active Class
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.currentTarget.classList.add('active'); // Lưu ý: event global
+            
+            // Update Text
+            document.getElementById('mode-display').innerText = AppConfig.MODES[mode].name;
+
+            // Logic Switch
+            DataManager.setMode(mode);
+            
+            // Vẽ lại bản đồ ngay lập tức
+            const data = DataManager.getDataAtHour(this.currentHour);
+            if (data) {
+                MapManager.drawLayer(data, mode);
+            }
+        },
+
+        handleLoad: async function() {
+            this.stopAnimation();
+            const dateStr = document.getElementById('history-date').value;
+            document.getElementById('history-time-display').innerText = "Đang tải...";
+            
+            const success = await DataManager.fetchData(dateStr);
+            if (success) {
+                this.currentHour = 0;
+                document.getElementById('hour-slider').value = 0;
+                this.updateHour(0, true); // true = force redraw layer
+                document.getElementById('history-time-display').innerText = `00:00 - ${dateStr}`;
+            } else {
+                alert("Không có dữ liệu hoặc lỗi kết nối!");
+                document.getElementById('history-time-display').innerText = "Lỗi.";
+            }
+        },
+
+        updateHour: function(hour, forceRedraw = false) {
+            this.currentHour = hour;
+            document.getElementById('hour-slider').value = hour;
+            const dateStr = document.getElementById('history-date').value;
+            document.getElementById('history-time-display').innerText = `${hour}:00 - ${dateStr}`;
+
+            const data = DataManager.getDataAtHour(hour);
+            if (data) {
+                if (forceRedraw) {
+                    MapManager.drawLayer(data, DataManager.currentMode);
+                } else {
+                    MapManager.updateData(data);
+                }
+            }
+        },
+
+        togglePlay: function() {
+            if (this.isPlaying) {
+                this.stopAnimation();
+            } else {
+                this.startAnimation();
+            }
+        },
+
+        startAnimation: function() {
+            if (DataManager.processedCache.length === 0) return;
+            this.isPlaying = true;
+            document.getElementById('btn-play-history').innerHTML = '<i class="fa-solid fa-pause"></i> Dừng';
+            
+            this.timer = setInterval(() => {
+                let nextHour = (this.currentHour + 1) % 24;
+                this.updateHour(nextHour);
+            }, 500);
+        },
+
+        stopAnimation: function() {
+            this.isPlaying = false;
+            document.getElementById('btn-play-history').innerHTML = '<i class="fa-solid fa-play"></i> Chạy Animation';
+            if (this.timer) clearInterval(this.timer);
+        }
+    };
+
+    // --- MAIN APP CONTROLLER ---
+    const App = {
+        start: function() {
+            UIManager.init();
+            // Load mặc định
+            // UIManager.handleLoad();
+        }
+    };
+
+    // Khởi tạo Map
+    MapManager.init();
+    
+    // Expose App globally for HTML onClick events
+    window.App = { UIManager }; 
+
+</script>
+
+</body>
+</html>

@@ -1,174 +1,707 @@
-<!DOCTYPE html>
-<html>
+<!-- <!DOCTYPE html>
+<html lang="vi">
 <head>
-    <title>Weather History Map</title>
+    <meta charset="UTF-8">
+    <title>Wind Map - Fixed Length</title>
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #000; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
         .controls {
-            position: absolute; top: 10px; left: 10px; background: white;
-            padding: 15px; z-index: 10; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2);
-            width: 300px;
+            position: absolute; top: 20px; left: 20px; background: rgba(10, 10, 15, 0.9);
+            padding: 20px; z-index: 10; border-radius: 16px; width: 320px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8); color: white; border: 1px solid #333;
+            backdrop-filter: blur(10px);
         }
-        input[type=range] { width: 100%; margin: 10px 0; }
+        .status-box {
+            background: #1e1e24; padding: 15px; border-radius: 12px; margin: 15px 0;
+            border-left: 4px solid #00d2ff;
+        }
+        .time-big { font-size: 1.8rem; font-weight: bold; display: block; color: #fff; }
+        .date-small { font-size: 0.9rem; color: #aaa; margin-top: 5px; }
+        input[type=range] { width: 100%; margin-bottom: 20px; cursor: pointer; accent-color: #00d2ff; }
+        
+        button.action-btn {
+            width: 100%; padding: 12px; background: #2b2b36; color: white; border: 1px solid #3f3f4e;
+            border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 600; 
+            margin-bottom: 10px; transition: 0.3s;
+        }
+        button.action-btn:hover { background: #3f3f4e; border-color: #00d2ff; }
+        #btn-play { background: #007bff; border-color: #007bff; }
+        #btn-play:hover { background: #0056b3; }
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85); color: white; padding: 15px 35px;
+            border-radius: 50px; z-index: 9999; display: none; font-size: 1rem; border: 1px solid #444;
+        }
     </style>
 </head>
 <body>
 
+<div id="loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...</div>
+
 <div class="controls">
-    <h3>Lịch sử Nhiệt độ (MongoDB)</h3>
-    <input type="date" id="history-date">
-    <button id="btn-load-history">Tải dữ liệu</button>
-    <hr>
-    <div id="history-time-display">Vui lòng chọn ngày</div>
-    <input type="range" id="hour-slider" min="0" max="23" value="0">
-    <button id="btn-play-history"><i class="fa-solid fa-play"></i> Chạy</button>
+    <h3 style="margin:0 0 5px 0; font-size: 1.2rem;">Gió Việt Nam (Fixed Mode)</h3>
+    <p style="font-size:0.8rem; color:#888; margin-bottom: 20px;">Độ dài cố định - Phạm vi cố định</p>
+
+    <div class="status-box">
+        <span class="time-big" id="clock-time">--:--</span>
+        <div class="date-small" id="clock-date">Chưa có dữ liệu</div>
+    </div>
+    
+    <input type="range" id="hour-slider" min="0" max="239" value="0">
+    
+    <button id="btn-load" class="action-btn" onclick="App.loadData()">
+        <i class="fa-solid fa-cloud-download"></i> Tải dữ liệu (63 Trạm)
+    </button>
+    
+    <button id="btn-play" class="action-btn" onclick="App.togglePlay()">
+        <i class="fa-solid fa-play"></i> Chạy Diễn biến
+    </button>
 </div>
 
 <div id="map"></div>
 
 <script>
-    mapboxgl.accessToken = 'pk.eyJ1IjoibnR0aGFuaDA4MDMiLCJhIjoiY21oeDJmZzZ5MDY2NjJsb3VmMmw2cnZvbiJ9.SidifhDOD6tL4x_qYkjEBw'; // <-- Thay token của bạn vào đây
+    mapboxgl.accessToken = 'pk.eyJ1IjoibnR0aGFuaDA4MDMiLCJhIjoiY21oeDJmZzZ5MDY2NjJsb3VmMmw2cnZvbiJ9.SidifhDOD6tL4x_qYkjEBw';
+
     const map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/dark-v10',
-        center: [105.8, 21.0],
-        zoom: 5
+        center: [108.0, 16.0],
+        zoom: 4.8 
     });
 
-    // --- CODE JS CỦA BẠN (Đã sửa đổi) ---
-    const HistoryManager = {
-        map: null,
-        dataCache: [],
-        currentHour: 0,
-        timer: null,
+    const Config = {
+        haloRadius: 0.8,
+        
+        maxLinesPerStation: 60, 
+        
+        // --- 1. TỐC ĐỘ DI CHUYỂN ---
+        // Gió mạnh sẽ bay nhanh hơn theo hệ số này
+        lineSpeed: 0.025,        
+        
+        // --- 2. GIỚI HẠN PHẠM VI ---
+        // Chỉ bay trong vòng tròn 35km quanh trạm. Ra khỏi là biến mất.
+        maxRadiusKm: 35,        
+        
+        spawnRadius: 0.4        
+    };
+
+    const App = {
+        globalData: {},
+        sortedDates: [],
+        linesArr: [], 
         isPlaying: false,
+        currentGlobalHour: 0,
+        timer: null,
+        currentStations: [],
 
-        init: function(mapInstance) {
-            this.map = mapInstance;
-            this.setupControls();
+        loadData: async function() {
+            const btn = document.getElementById('btn-load');
+            btn.disabled = true; btn.innerText = "Đang đồng bộ...";
+            document.getElementById('loading').style.display = 'block';
             
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            document.getElementById('history-date').value = yesterday.toISOString().split('T')[0];
-        },
+            const end = new Date('2023-12-25');
+            const start = new Date(end);
+            start.setDate(start.getDate() - 9);
+            
+            const startStr = start.toISOString().split('T')[0];
+            const endStr = end.toISOString().split('T')[0];
 
-        fetchHistoryData: function(dateStr) {
-            this.stopAnimation();
-            document.getElementById('history-time-display').innerText = "Đang lấy dữ liệu từ Server...";
-
-            // GỌI API BACKEND CỦA MÌNH
-            fetch(`http://localhost:3000/api/history?date=${dateStr}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (!data || data.length === 0) {
-                        alert("Chưa có dữ liệu ngày này trong Database. Hãy chạy script importData.js trước!");
-                        document.getElementById('history-time-display').innerText = "Không có dữ liệu.";
-                        return;
-                    }
-                    this.processData(data);
-                    document.getElementById('history-time-display').innerText = `Đã tải xong ngày ${dateStr}`;
-                })
-                .catch(err => {
-                    console.error(err);
-                    document.getElementById('history-time-display').innerText = "Lỗi kết nối Server!";
-                });
-        },
-
-        processData: function(dbResponse) {
-            this.dataCache = []; 
-            for (let hour = 0; hour < 24; hour++) {
-                const features = dbResponse.map((record) => {
-                    return {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [record.location.lon, record.location.lat]
-                        },
-                        "properties": {
-                            "temperature": record.hourly_temps[hour]
-                        }
-                    };
-                });
-                this.dataCache.push({ "type": "FeatureCollection", "features": features });
-            }
-            this.currentHour = 0;
-            document.getElementById('hour-slider').value = 0;
-            this.drawLayer(this.dataCache[0]);
-            this.startAnimation();
-        },
-
-        drawLayer: function(geoJson) {
-            if (this.map.getLayer('history-heat-layer')) this.map.removeLayer('history-heat-layer');
-            if (this.map.getSource('history-heat-source')) this.map.removeSource('history-heat-source');
-
-            this.map.addSource('history-heat-source', { type: 'geojson', data: geoJson });
-
-            this.map.addLayer({
-                id: 'history-heat-layer',
-                type: 'circle',
-                source: 'history-heat-source',
-                paint: {
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 20, 10, 50],
-                    'circle-blur': 0.8,
-                    'circle-opacity': 0.7,
-                    'circle-color': [
-                        'interpolate', ['linear'], ['get', 'temperature'],
-                        10, '#3696e1', 20, '#66ff66', 30, '#ff9933', 40, '#ff3333'
-                    ]
-                }
-            });
-            const dateStr = document.getElementById('history-date').value;
-            document.getElementById('history-time-display').innerHTML = `Thời gian: <strong>${this.currentHour}:00</strong> ngày ${dateStr}`;
-        },
-
-        startAnimation: function() {
-            this.isPlaying = true;
-            document.getElementById('btn-play-history').innerHTML = '<i class="fa-solid fa-pause"></i> Dừng';
-            if (this.timer) clearInterval(this.timer);
-            this.timer = setInterval(() => {
-                if (!this.isPlaying) return;
-                this.currentHour = (this.currentHour + 1) % 24;
-                document.getElementById('hour-slider').value = this.currentHour;
+            try {
+                const res = await fetch(`http://localhost:3000/api/range?start=${startStr}&end=${endStr}`);
+                const data = await res.json();
                 
-                const source = this.map.getSource('history-heat-source');
-                if (source && this.dataCache[this.currentHour]) {
-                    source.setData(this.dataCache[this.currentHour]);
-                    const dateStr = document.getElementById('history-date').value;
-                    document.getElementById('history-time-display').innerHTML = `Thời gian: <strong>${this.currentHour}:00</strong> ngày ${dateStr}`;
+                if (!data || data.length === 0) throw new Error("Không có dữ liệu");
+
+                this.processData(data);
+                
+                const slider = document.getElementById('hour-slider');
+                slider.max = this.sortedDates.length * 24 - 1;
+                slider.value = 0;
+                
+                await this.updateFrame(0);
+
+                btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Đã tải xong';
+                document.getElementById('loading').style.display = 'none';
+
+            } catch (err) {
+                console.error(err);
+                alert("Lỗi: " + err.message);
+                btn.disabled = false; btn.innerText = "Thử lại";
+                document.getElementById('loading').style.display = 'none';
+            }
+        },
+
+        processData: function(flatData) {
+            this.globalData = {};
+            const dateSet = new Set();
+            flatData.forEach(item => {
+                if (!this.globalData[item.date]) this.globalData[item.date] = [];
+                this.globalData[item.date].push(item);
+                dateSet.add(item.date);
+            });
+            this.sortedDates = Array.from(dateSet).sort();
+        },
+
+        getStationData: function(hourIndex, dateKey) {
+            const dayRecords = this.globalData[dateKey];
+            if (!dayRecords) return [];
+
+            const stations = [];
+            dayRecords.forEach(rec => {
+                const u = (rec.hourly_wind_u && rec.hourly_wind_u[hourIndex]) || 0;
+                const v = (rec.hourly_wind_v && rec.hourly_wind_v[hourIndex]) || 0;
+                const speed = Math.sqrt(u*u + v*v);
+                let bearing = (Math.atan2(u, v) * 180 / Math.PI);
+                if (bearing < 0) bearing += 360;
+
+                stations.push({
+                    coord: [rec.location.lon, rec.location.lat],
+                    speed: speed,
+                    bearing: bearing
+                });
+            });
+            return stations;
+        },
+
+        initLines: function(stations) {
+            this.linesArr = []; 
+            stations.forEach(station => {
+                for (let i = 0; i < Config.maxLinesPerStation; i++) {
+                    const startPos = [
+                        station.coord[0] + (Math.random() - 0.5) * Config.spawnRadius,
+                        station.coord[1] + (Math.random() - 0.5) * Config.spawnRadius
+                    ];
+
+                    this.linesArr.push({
+                        currentCoords: [startPos],
+                        parentStation: station, 
+                        offsetX: startPos[0] - station.coord[0],
+                        offsetY: startPos[1] - station.coord[1],
+                        localIndex: i 
+                    });
                 }
-            }, 500);
+            });
         },
 
-        stopAnimation: function() {
-            this.isPlaying = false;
-            document.getElementById('btn-play-history').innerHTML = '<i class="fa-solid fa-play"></i> Chạy';
-            clearInterval(this.timer);
+        updateFrame: async function(globalHour) {
+            this.currentGlobalHour = globalHour;
+            const dayIdx = Math.floor(globalHour / 24);
+            const hourIdx = globalHour % 24;
+            const dateStr = this.sortedDates[dayIdx];
+            
+            document.getElementById('clock-time').innerText = `${hourIdx}:00`;
+            document.getElementById('clock-date').innerText = dateStr;
+            document.getElementById('hour-slider').value = globalHour;
+
+            this.currentStations = this.getStationData(hourIdx, dateStr);
+            
+            const stationGeoJSON = {
+                type: 'FeatureCollection',
+                features: this.currentStations.map(s => ({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: s.coord },
+                    properties: { speed: s.speed }
+                }))
+            };
+            const source = map.getSource('station-heat-source');
+            if (source) source.setData(stationGeoJSON);
+
+            this.initLines(this.currentStations);
         },
 
-        setupControls: function() {
-            document.getElementById('btn-load-history').addEventListener('click', () => {
-                const dateVal = document.getElementById('history-date').value;
-                if (dateVal) this.fetchHistoryData(dateVal);
-            });
-            document.getElementById('btn-play-history').addEventListener('click', () => {
-                this.isPlaying ? this.stopAnimation() : this.startAnimation();
-            });
-            document.getElementById('hour-slider').addEventListener('input', (e) => {
-                this.stopAnimation();
-                this.currentHour = parseInt(e.target.value);
-                const source = this.map.getSource('history-heat-source');
-                if (source && this.dataCache[this.currentHour]) source.setData(this.dataCache[this.currentHour]);
-            });
+        animate: function() {
+            if (!this.isPlaying) return;
+
+            const features = [];
+            const currentZoom = map.getZoom();
+
+            // Logic Mật độ (Density)
+            let activeLinesCount = 60; 
+            if (currentZoom > 6) activeLinesCount = 30; 
+            if (currentZoom > 9) activeLinesCount = 10; 
+
+            // --- 3. LOGIC ĐỘ DÀI CỐ ĐỊNH (FIXED LENGTH) ---
+            // Số lượng điểm (đốt) tạo nên con rắn gió.
+            // Cố định là 20 đốt.
+            // Gió nhanh -> 20 đốt này giãn ra -> Trông dài.
+            // Gió chậm -> 20 đốt này co lại -> Trông ngắn.
+            let fixedTailLength = 20; 
+            
+            // Chỉ giảm bớt khi Zoom quá gần để khỏi vướng mắt
+            if (currentZoom > 6) fixedTailLength = 10;
+            if (currentZoom > 9) fixedTailLength = 5;
+
+            // Logic Tốc độ ảo khi Zoom xa
+            let zoomSpeedFactor = 1;
+            if (currentZoom < 6) zoomSpeedFactor = 1.5; 
+
+            for (let line of this.linesArr) {
+                if (line.localIndex >= activeLinesCount) continue;
+
+                const lastCoord = line.currentCoords[line.currentCoords.length - 1];
+                const station = line.parentStation;
+
+                // Tính toán bước di chuyển (Step Distance)
+                // Bước nhảy phụ thuộc hoàn toàn vào Tốc độ gió
+                const moveDist = (station.speed * Config.lineSpeed * zoomSpeedFactor) + 0.02;
+
+                const dest = turf.destination(turf.point(lastCoord), moveDist, station.bearing, {units: 'kilometers'});
+                const nextCoord = dest.geometry.coordinates;
+                
+                line.currentCoords.push(nextCoord);
+
+                // Kiểm tra giới hạn vùng bay (35km)
+                const distFromCenter = turf.distance(turf.point(nextCoord), turf.point(station.coord), {units: 'kilometers'});
+                if (distFromCenter > Config.maxRadiusKm) {
+                    const respawnPos = [
+                        station.coord[0] + line.offsetX,
+                        station.coord[1] + line.offsetY
+                    ];
+                    line.currentCoords = [respawnPos];
+                }
+
+                // --- CẮT ĐUÔI THEO ĐỘ DÀI CỐ ĐỊNH ---
+                // Không quan tâm tốc độ bao nhiêu, cứ dài hơn fixedTailLength là cắt
+                if (line.currentCoords.length > fixedTailLength) { 
+                    line.currentCoords.shift();
+                }
+
+                if (line.currentCoords.length > 1) {
+                    features.push(turf.lineString(line.currentCoords));
+                }
+            }
+
+            const geoJsonData = turf.featureCollection(features);
+            map.getSource('wind-lines').setData(geoJsonData);
+
+            requestAnimationFrame(() => this.animate());
+        },
+
+        togglePlay: function() {
+            if (this.isPlaying) {
+                this.isPlaying = false;
+                document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-play"></i> Chạy Diễn biến';
+                clearInterval(this.timer);
+            } else {
+                if (this.linesArr.length === 0) { alert("Vui lòng tải dữ liệu trước"); return; }
+                this.isPlaying = true;
+                document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-pause"></i> Dừng';
+                this.animate();
+
+                this.timer = setInterval(async () => {
+                    this.currentGlobalHour++;
+                    if (this.currentGlobalHour >= this.sortedDates.length * 24) this.currentGlobalHour = 0;
+                    await this.updateFrame(this.currentGlobalHour);
+                }, 4000); 
+            }
         }
     };
 
     map.on('load', () => {
-        HistoryManager.init(map);
+        // LAYER NỀN
+        map.addSource('station-heat-source', { type: 'geojson', data: {type: 'FeatureCollection', features: []} });
+        map.addLayer({
+            id: 'station-heat-halo',
+            type: 'circle',
+            source: 'station-heat-source',
+            paint: {
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 25, 8, 80],
+                'circle-blur': 0.8,
+                'circle-opacity': 0.6,
+                'circle-color': [
+                    'interpolate', ['linear'], ['get', 'speed'],
+                    0, '#2196f3', 15, '#00e676', 30, '#ffeb3b', 45, '#ff9800', 60, '#f44336', 100, '#d50000'
+                ]
+            }
+        });
+
+        // LAYER ĐƯỜNG GIÓ
+        map.addSource('wind-lines', { type: 'geojson', data: turf.featureCollection([]) });
+        map.addLayer({
+            id: 'wind-lines-draw',
+            type: 'line',
+            source: 'wind-lines',
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+                'line-color': 'rgba(255, 255, 255, 0.8)',
+                'line-width': ['interpolate', ['linear'], ['zoom'], 4, 2.5, 10, 1.5]
+            }
+        });
+
+        document.getElementById('hour-slider').addEventListener('input', (e) => {
+            App.isPlaying = false;
+            clearInterval(App.timer);
+            document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-play"></i> Chạy Diễn biến';
+            App.updateFrame(parseInt(e.target.value));
+        });
+    });
+</script>
+
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Wind Map - Constant Length</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #000; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        .controls {
+            position: absolute; top: 20px; left: 20px; background: rgba(10, 10, 15, 0.9);
+            padding: 20px; z-index: 10; border-radius: 16px; width: 320px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8); color: white; border: 1px solid #333;
+            backdrop-filter: blur(10px);
+        }
+        .status-box {
+            background: #1e1e24; padding: 15px; border-radius: 12px; margin: 15px 0;
+            border-left: 4px solid #00d2ff;
+        }
+        .time-big { font-size: 1.8rem; font-weight: bold; display: block; color: #fff; }
+        .date-small { font-size: 0.9rem; color: #aaa; margin-top: 5px; }
+        input[type=range] { width: 100%; margin-bottom: 20px; cursor: pointer; accent-color: #00d2ff; }
+        
+        button.action-btn {
+            width: 100%; padding: 12px; background: #2b2b36; color: white; border: 1px solid #3f3f4e;
+            border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 600; 
+            margin-bottom: 10px; transition: 0.3s;
+        }
+        button.action-btn:hover { background: #3f3f4e; border-color: #00d2ff; }
+        #btn-play { background: #007bff; border-color: #007bff; }
+        #btn-play:hover { background: #0056b3; }
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85); color: white; padding: 15px 35px;
+            border-radius: 50px; z-index: 9999; display: none; font-size: 1rem; border: 1px solid #444;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...</div>
+
+<div class="controls">
+    <h3 style="margin:0 0 5px 0; font-size: 1.2rem;">Gió Việt Nam (Độ dài chuẩn)</h3>
+    <p style="font-size:0.8rem; color:#888; margin-bottom: 20px;">Độ dài cố định bất kể tốc độ</p>
+
+    <div class="status-box">
+        <span class="time-big" id="clock-time">--:--</span>
+        <div class="date-small" id="clock-date">Chưa có dữ liệu</div>
+    </div>
+    
+    <input type="range" id="hour-slider" min="0" max="239" value="0">
+    
+    <button id="btn-load" class="action-btn" onclick="App.loadData()">
+        <i class="fa-solid fa-cloud-download"></i> Tải dữ liệu (63 Trạm)
+    </button>
+    
+    <button id="btn-play" class="action-btn" onclick="App.togglePlay()">
+        <i class="fa-solid fa-play"></i> Chạy Diễn biến
+    </button>
+</div>
+
+<div id="map"></div>
+
+<script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoibnR0aGFuaDA4MDMiLCJhIjoiY21oeDJmZzZ5MDY2NjJsb3VmMmw2cnZvbiJ9.SidifhDOD6tL4x_qYkjEBw';
+
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/dark-v10',
+        center: [108.0, 16.0],
+        zoom: 4.8 
+    });
+
+    const Config = {
+        haloRadius: 0.8,
+        maxLinesPerStation: 50, 
+        
+        // Tốc độ di chuyển (giữ nguyên để gió mạnh chạy nhanh)
+        lineSpeed: 0.025,        
+        
+        // Phạm vi bay tối đa (Bán kính lồng nhốt)
+        maxRadiusKm: 35,        
+        spawnRadius: 0.4,
+
+        // --- CẤU HÌNH QUAN TRỌNG MỚI ---
+        // Độ dài hiển thị mục tiêu của đường gió (Tính bằng Km)
+        // Mọi đường gió sẽ cố gắng giữ độ dài hiển thị là 15km
+        targetVisualLengthKm: 15 
+    };
+
+    const App = {
+        globalData: {},
+        sortedDates: [],
+        linesArr: [], 
+        isPlaying: false,
+        currentGlobalHour: 0,
+        timer: null,
+        currentStations: [],
+
+        loadData: async function() {
+            const btn = document.getElementById('btn-load');
+            btn.disabled = true; btn.innerText = "Đang đồng bộ...";
+            document.getElementById('loading').style.display = 'block';
+            
+            const end = new Date('2023-12-25');
+            const start = new Date(end);
+            start.setDate(start.getDate() - 9);
+            
+            const startStr = start.toISOString().split('T')[0];
+            const endStr = end.toISOString().split('T')[0];
+
+            try {
+                const res = await fetch(`http://localhost:3000/api/range?start=${startStr}&end=${endStr}`);
+                const data = await res.json();
+                
+                if (!data || data.length === 0) throw new Error("Không có dữ liệu");
+
+                this.processData(data);
+                
+                const slider = document.getElementById('hour-slider');
+                slider.max = this.sortedDates.length * 24 - 1;
+                slider.value = 0;
+                
+                await this.updateFrame(0);
+
+                btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Đã tải xong';
+                document.getElementById('loading').style.display = 'none';
+
+            } catch (err) {
+                console.error(err);
+                alert("Lỗi: " + err.message);
+                btn.disabled = false; btn.innerText = "Thử lại";
+                document.getElementById('loading').style.display = 'none';
+            }
+        },
+
+        processData: function(flatData) {
+            this.globalData = {};
+            const dateSet = new Set();
+            flatData.forEach(item => {
+                if (!this.globalData[item.date]) this.globalData[item.date] = [];
+                this.globalData[item.date].push(item);
+                dateSet.add(item.date);
+            });
+            this.sortedDates = Array.from(dateSet).sort();
+        },
+
+        getStationData: function(hourIndex, dateKey) {
+            const dayRecords = this.globalData[dateKey];
+            if (!dayRecords) return [];
+
+            const stations = [];
+            dayRecords.forEach(rec => {
+                const u = (rec.hourly_wind_u && rec.hourly_wind_u[hourIndex]) || 0;
+                const v = (rec.hourly_wind_v && rec.hourly_wind_v[hourIndex]) || 0;
+                const speed = Math.sqrt(u*u + v*v);
+                let bearing = (Math.atan2(u, v) * 180 / Math.PI);
+                if (bearing < 0) bearing += 360;
+
+                stations.push({
+                    coord: [rec.location.lon, rec.location.lat],
+                    speed: speed,
+                    bearing: bearing
+                });
+            });
+            return stations;
+        },
+
+        initLines: function(stations) {
+            this.linesArr = []; 
+            stations.forEach(station => {
+                for (let i = 0; i < Config.maxLinesPerStation; i++) {
+                    const startPos = [
+                        station.coord[0] + (Math.random() - 0.5) * Config.spawnRadius,
+                        station.coord[1] + (Math.random() - 0.5) * Config.spawnRadius
+                    ];
+
+                    this.linesArr.push({
+                        currentCoords: [startPos],
+                        parentStation: station, 
+                        offsetX: startPos[0] - station.coord[0],
+                        offsetY: startPos[1] - station.coord[1],
+                        localIndex: i 
+                    });
+                }
+            });
+        },
+
+        updateFrame: async function(globalHour) {
+            this.currentGlobalHour = globalHour;
+            const dayIdx = Math.floor(globalHour / 24);
+            const hourIdx = globalHour % 24;
+            const dateStr = this.sortedDates[dayIdx];
+            
+            document.getElementById('clock-time').innerText = `${hourIdx}:00`;
+            document.getElementById('clock-date').innerText = dateStr;
+            document.getElementById('hour-slider').value = globalHour;
+
+            this.currentStations = this.getStationData(hourIdx, dateStr);
+            
+            const stationGeoJSON = {
+                type: 'FeatureCollection',
+                features: this.currentStations.map(s => ({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: s.coord },
+                    properties: { speed: s.speed }
+                }))
+            };
+            const source = map.getSource('station-heat-source');
+            if (source) source.setData(stationGeoJSON);
+
+            this.initLines(this.currentStations);
+        },
+
+        animate: function() {
+            if (!this.isPlaying) return;
+
+            const features = [];
+            const currentZoom = map.getZoom();
+
+            // Mật độ theo Zoom
+            let activeLinesCount = 50; 
+            if (currentZoom > 6) activeLinesCount = 25; 
+            if (currentZoom > 9) activeLinesCount = 10; 
+
+            // Zoom Factor để tính độ dài ảo (giúp nhìn rõ khi zoom xa)
+            let zoomSpeedFactor = 1;
+            if (currentZoom < 6) zoomSpeedFactor = 1.5; 
+
+            for (let line of this.linesArr) {
+                if (line.localIndex >= activeLinesCount) continue;
+
+                const lastCoord = line.currentCoords[line.currentCoords.length - 1];
+                const station = line.parentStation;
+
+                // 1. TÍNH BƯỚC NHẢY (KHOẢNG CÁCH MỖI FRAME)
+                // moveDist càng lớn nghĩa là gió càng nhanh
+                const moveDist = (station.speed * Config.lineSpeed * zoomSpeedFactor) + 0.02;
+
+                const dest = turf.destination(turf.point(lastCoord), moveDist, station.bearing, {units: 'kilometers'});
+                const nextCoord = dest.geometry.coordinates;
+                line.currentCoords.push(nextCoord);
+
+                // 2. CHECK GIỚI HẠN VÙNG BAY (Max Radius)
+                const distFromCenter = turf.distance(turf.point(nextCoord), turf.point(station.coord), {units: 'kilometers'});
+                if (distFromCenter > Config.maxRadiusKm) {
+                    const respawnPos = [
+                        station.coord[0] + line.offsetX,
+                        station.coord[1] + line.offsetY
+                    ];
+                    line.currentCoords = [respawnPos];
+                }
+
+                // 3. THUẬT TOÁN "CONSTANT PHYSICAL LENGTH" (Quan trọng nhất)
+                // Mục tiêu: Tổng độ dài đường vẽ = Config.targetVisualLengthKm (ví dụ 15km)
+                // Số đốt cần giữ = Tổng độ dài / Độ dài mỗi đốt (moveDist)
+                
+                let targetLengthKm = Config.targetVisualLengthKm;
+                // Nếu zoom gần thì thu ngắn lại cho đỡ vướng
+                if (currentZoom > 7) targetLengthKm = 8;
+                if (currentZoom > 9) targetLengthKm = 3;
+
+                // Đây là công thức thần thánh:
+                // Nếu moveDist lớn (gió nhanh) -> allowedSegments sẽ nhỏ -> Ít đốt -> Ngắn lại.
+                // Nếu moveDist nhỏ (gió chậm) -> allowedSegments sẽ lớn -> Nhiều đốt -> Dài ra.
+                // Kết quả: Cả 2 đều có độ dài vật lý xấp xỉ nhau trên bản đồ.
+                const allowedSegments = Math.floor(targetLengthKm / moveDist);
+                
+                // Giới hạn tối thiểu 2 đốt để thành đường thẳng
+                const finalSegments = Math.max(2, allowedSegments);
+
+                // Cắt đuôi dựa trên số đốt đã tính
+                if (line.currentCoords.length > finalSegments) { 
+                    line.currentCoords.shift(); // Xóa điểm cũ nhất
+                    // Nếu gió quá nhanh khiến số đốt giảm đột ngột, có thể cần xóa nhiều điểm hơn
+                    while(line.currentCoords.length > finalSegments) {
+                         line.currentCoords.shift();
+                    }
+                }
+
+                if (line.currentCoords.length > 1) {
+                    features.push(turf.lineString(line.currentCoords));
+                }
+            }
+
+            const geoJsonData = turf.featureCollection(features);
+            map.getSource('wind-lines').setData(geoJsonData);
+
+            requestAnimationFrame(() => this.animate());
+        },
+
+        togglePlay: function() {
+            if (this.isPlaying) {
+                this.isPlaying = false;
+                document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-play"></i> Chạy Diễn biến';
+                clearInterval(this.timer);
+            } else {
+                if (this.linesArr.length === 0) { alert("Vui lòng tải dữ liệu trước"); return; }
+                this.isPlaying = true;
+                document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-pause"></i> Dừng';
+                this.animate();
+
+                this.timer = setInterval(async () => {
+                    this.currentGlobalHour++;
+                    if (this.currentGlobalHour >= this.sortedDates.length * 24) this.currentGlobalHour = 0;
+                    await this.updateFrame(this.currentGlobalHour);
+                }, 4000); 
+            }
+        }
+    };
+
+    map.on('load', () => {
+        // LAYER NỀN
+        map.addSource('station-heat-source', { type: 'geojson', data: {type: 'FeatureCollection', features: []} });
+        map.addLayer({
+            id: 'station-heat-halo',
+            type: 'circle',
+            source: 'station-heat-source',
+            paint: {
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 25, 8, 80],
+                'circle-blur': 0.8,
+                'circle-opacity': 0.6,
+                'circle-color': [
+                    'interpolate', ['linear'], ['get', 'speed'],
+                    0, '#2196f3', 15, '#00e676', 30, '#ffeb3b', 45, '#ff9800', 60, '#f44336', 100, '#d50000'
+                ]
+            }
+        });
+
+        // LAYER ĐƯỜNG GIÓ
+        map.addSource('wind-lines', { type: 'geojson', data: turf.featureCollection([]) });
+        map.addLayer({
+            id: 'wind-lines-draw',
+            type: 'line',
+            source: 'wind-lines',
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+                'line-color': 'rgba(255, 255, 255, 0.85)', // Tăng độ sáng lên chút
+                'line-width': ['interpolate', ['linear'], ['zoom'], 4, 2.5, 10, 1.5]
+            }
+        });
+
+        document.getElementById('hour-slider').addEventListener('input', (e) => {
+            App.isPlaying = false;
+            clearInterval(App.timer);
+            document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-play"></i> Chạy Diễn biến';
+            App.updateFrame(parseInt(e.target.value));
+        });
     });
 </script>
 
