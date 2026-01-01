@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Modular Wind App</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+<div id="loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...</div>
+
+<div class="controls">
+    <h3 style="margin:0 0 5px 0; font-size: 1.2rem;">Gió Việt Nam (Modular)</h3>
+    <p style="font-size:0.8rem; color:#888; margin-bottom: 20px;">Code đã được tối ưu module</p>
+
+    <div class="status-box">
+        <span class="time-big" id="clock-time">--:--</span>
+        <div class="date-small" id="clock-date">Chưa có dữ liệu</div>
+    </div>
+    
+    <input type="range" id="hour-slider" min="0" max="239" value="0">
+    
+    <button id="btn-load" class="action-btn" onclick="App.loadData()">
+        <i class="fa-solid fa-cloud-download"></i> Tải dữ liệu
+    </button>
+    
+    <button id="btn-play" class="action-btn" onclick="App.togglePlay()">
+        <i class="fa-solid fa-play"></i> Chạy Diễn biến
+    </button>
+</div>
+
+<div id="map"></div>
+
+<script type="module" src="./js/main.js"></script>
+
+</body>
+</html>
