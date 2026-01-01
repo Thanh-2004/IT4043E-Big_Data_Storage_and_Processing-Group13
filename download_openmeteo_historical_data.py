@@ -5,14 +5,17 @@ Given a list of cities and desired weather features, crawl data from Open-Meteo 
 USAGE:
 python download_openmeteo_historical_data.py --start_date 20000101 --end_date 20251205
 """
-import openmeteo_requests
-import requests_cache
-import argparse
-import pandas as pd
-from retry_requests import retry
+
 import os
 import gc
+import time
 import logging
+import argparse
+import openmeteo_requests
+import requests_cache
+import pandas as pd
+from retry_requests import retry
+from datetime import datetime, timedelta
 
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s', # printf-style formatting: %(name)[type]
@@ -64,10 +67,6 @@ def parse_arguments():
     args = parser.parse_args()
     return args
 
-def convert_date_str_format(date: str) -> str:
-    year, month, day = date[:4], date[4:6], date[6:]
-    return f'{year}-{month}-{day}'
-
 def main():
     # Make sure the output directory exists
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -76,8 +75,8 @@ def main():
     if (int(args.start_date) > int(args.end_date)):
         logger.error(f"start_date must be before end_date: {args.start_date} > {args.end_date}")
 
-    start_date = convert_date_str_format(args.start_date)
-    end_date = convert_date_str_format(args.end_date)
+    global_start_date = datetime.strptime(args.start_date, "%Y%m%d")
+    global_end_date = datetime.strptime(args.end_date, "%Y%m%d")
     
     logger.info('=' * 70)
     logger.info('STEP 1: Setup the Open-Meteo API client with cache and retry on error')
@@ -101,64 +100,97 @@ def main():
     logger.info("=" * 70)
     logger.info(f"STEP 2: Requesting data for {len(CITIES)} cities...")
     logger.info("=" * 70)
-    latitudes = [city['lat'] for city in CITIES]
-    longitudes = [city['lon'] for city in CITIES]
 
-    params = {
-        "latitude": latitudes,
-        "longitude": longitudes,
-        "start_date": start_date,
-        "end_date": end_date,
-        "hourly": HOURLY_VARS,
-        "timezone": "Asia/Bangkok"
-    }
+    for city in CITIES:
+        city_name = city.get("name", "")
+        latitude = city.get("lat", None)
+        longitude = city.get("lon", None)
 
-    try:
-        responses = openmeteo.weather_api(HISTORICAL_URL, params=params)
-    except Exception as e:
-        logger.exception(f"Failed to request data from {HISTORICAL_URL}")
-        raise
-    logger.info("SUCCESSFULLY REQUESTED DATA!\n")
+        filename = f"{OUTPUT_DIR}/{city_name}_{args.start_date}_{args.end_date}.csv"
 
-    logger.info("=" * 70)
-    logger.info("STEP 3: Processing responses...")
-    logger.info("=" * 70)
-
-    for i, response in enumerate(responses):
-        city_name = CITIES[i]['name']
-        logger.info(f'Processing data for {city_name}...')
-
-        hourly = response.Hourly()
-        hourly_data = {
-            "timestamp": pd.date_range(
-                start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
-                end =  pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
-                freq = pd.Timedelta(seconds = hourly.Interval()),
-	            inclusive = "left"
-            )
-        }
-
-        for i, feature in enumerate(HOURLY_VARS):
-            hourly_data[feature] = hourly.Variables(i).ValuesAsNumpy()
+        if os.path.exists(filename):
+            logger.warning(f"{filename} already existed, will be overwritten!")
+            os.remove(filename)
         
-        hourly_dataframe = pd.DataFrame(data=hourly_data)
-        hourly_dataframe["city"] = city_name
-        hourly_dataframe.info()
-        logger.info(f"SUCCESSFULLY PROCESSED DATA FOR {city_name.upper()}\n")
+        time_chunk_start = global_start_date
+        while time_chunk_start <= global_end_date:
+            time_chunk_end = time_chunk_start + timedelta(days=364)
+            if time_chunk_end > global_end_date:
+                time_chunk_end = global_end_date
+            
+            start_str = time_chunk_start.strftime("%Y-%m-%d")
+            end_str = time_chunk_end.strftime("%Y-%m-%d")
 
-        # Save to CSV
-        filename = f"{OUTPUT_DIR}/{city_name}_{start_date}_{end_date}.csv"
-        hourly_dataframe.to_csv(
-            filename,
-            index=False, 
-            chunksize=100_000
-        )
-        logger.info(f"SAVED TO {filename} ({len(hourly_dataframe)} rows)\n")
+            params = {
+                "latitude": latitude,
+                "longitude": longitude,
+                "start_date": start_str,
+                "end_date": end_str,
+                "hourly": HOURLY_VARS,
+                "timezone": "Asia/Bangkok"
+            }
 
-        # Free RAM
-        del hourly_dataframe
-        gc.collect()
+            try:
+                responses = openmeteo.weather_api(HISTORICAL_URL, params=params)
+            except Exception as e:
+                logger.exception(f"Failed to request data from {HISTORICAL_URL} from {start_str} to {end_str} for {city_name.upper()}")
+                raise
+            logger.info(f"SUCCESSFULLY REQUESTED DATA FROM {start_str} TO {end_str} FOR {city_name.upper()}!\n")
 
+            logger.info("=" * 70)
+            logger.info(f"Processing and downloading for {city_name.upper()}: {start_str} - {end_str}...")
+            logger.info("=" * 70)
+
+            response = responses[0]
+
+            hourly = response.Hourly()
+            hourly_data = {
+                "timestamp": pd.date_range(
+                    start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
+                    end =  pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
+                    freq = pd.Timedelta(seconds = hourly.Interval()),
+                    inclusive = "left"
+                )
+            }
+
+            for i, feature in enumerate(HOURLY_VARS):
+                hourly_data[feature] = hourly.Variables(i).ValuesAsNumpy()
+            
+            hourly_dataframe = pd.DataFrame(data=hourly_data)
+            hourly_dataframe["city"] = city_name
+            hourly_dataframe.info()
+            logger.info(f"SUCCESSFULLY PROCESSED DATA FOR {city_name.upper()}: {start_str} - {end_str}\n")
+
+            # Save to CSV + append time chunk data
+            write_header = not os.path.exists(filename)
+
+            hourly_dataframe.to_csv(
+                filename,
+                header=write_header,
+                index=False, 
+                mode ='a',
+                chunksize=100_000
+            )
+            logger.info(f"SAVED TO {filename}: {start_str} - {end_str}!\n")
+
+            # Free RAM
+            del hourly_dataframe
+            gc.collect()
+
+            # Break the time-chunk data
+            if time_chunk_start == global_end_date:
+                break
+            
+            # Move to the next time chunk
+            time_chunk_start = time_chunk_end + timedelta(days=1)
+            if time_chunk_start > global_end_date:
+                time_chunk_start = global_end_date
+            
+            # Be polite to the API
+            time.sleep(1)
+
+        logger.info(f"COMPLETED DOWNLOADING {city_name.upper()}!")
+        
     logger.info("DOWNLOADING PROCESS COMPLETED!")
 if __name__ == '__main__':
     main()
