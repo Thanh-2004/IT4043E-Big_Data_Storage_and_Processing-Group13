@@ -4,8 +4,9 @@ executor: LocalExecutor
 # 2. Version & Dependencies
 images:
   airflow:
-    repository: apache/airflow
-    tag: 2.10.4
+    repository: my-airflow-custom
+    tag: 2.10.4-custom
+    pullPolicy: Never
 extraPipPackages:
   - "apache-airflow-providers-apache-spark==4.7.0"
   - "psycopg2-binary==2.9.9"

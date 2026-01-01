@@ -1,59 +1,47 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col, current_timestamp
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
-# 1. Define the Schema (Must match the OpenWeatherMap JSON exactly)
-# We only keep the fields we actually care about to save space.
-schema = StructType([
-    StructField("main", StructType([
-        StructField("temp", DoubleType()),
-        StructField("humidity", LongType())
-    ])),
-    StructField("weather", StringType()), # This comes as an array of objects in raw JSON
-    StructField("name", StringType()),    # City Name
-    StructField("dt", LongType())         # Timestamp
-])
+# Default settings for all tasks
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
 
-def start_etl():
-    # 2. Initialize Spark with the MongoDB and Kafka Connectors
-    spark = SparkSession.builder \
-        .appName("WeatherETL") \
-        .config("spark.mongodb.write.connection.uri", "mongodb://admin:password@mongo-service.default.svc.cluster.local:27017/weather_db.weather_collection?authSource=admin") \
-        .getOrCreate()
+# Define the DAG
+with DAG(
+    'weather_bigdata_pipeline',
+    default_args=default_args,
+    description='Submit Weather ETL to Spark Cluster',
+    schedule_interval=None,  # Manual trigger for now
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+    tags=['spark', 'weather'],
+) as dag:
 
-    spark.sparkContext.setLogLevel("WARN")
+    # Task: Submit the Spark Job
+    submit_etl = SparkSubmitOperator(
+        task_id='submit_etl_job',
+        # This connection ID comes from your env var AIRFLOW_CONN_SPARK_STANDALONE
+        conn_id='spark_standalone', 
+        
+        # Path where the script lives INSIDE the Airflow container (via volume mount)
+        application='/opt/airflow/spark_jobs/weather_etl.py',
+        
+        # Dependencies (Kafka + Mongo Connectors)
+        packages='org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.mongodb.spark:mongo-spark-connector_2.12:10.3.0',
+        
+        # Spark Configuration
+        conf={
+            "spark.master": "spark://spark-master-svc.default.svc.cluster.local:7077",
+            "spark.submit.deployMode": "client", # Run driver in the Airflow pod (easier logs)
+            "spark.driver.bindAddress": "0.0.0.0"
+        },
+        verbose=True
+    )
 
-    # 3. Read from Kafka
-    # We connect to the 'weather_data' topic we created earlier
-    kafka_df = spark.readStream \
-        .format("kafka") \
-        .option("kafka.bootstrap.servers", "kafka-service.default.svc.cluster.local:9092") \
-        .option("subscribe", "weather_data") \
-        .option("startingOffsets", "earliest") \
-        .load()
-
-    # 4. Transform the Data
-    # Kafka sends data as bytes in the 'value' column. We cast to String -> Parse JSON.
-    weather_df = kafka_df.selectExpr("CAST(value AS STRING)") \
-        .select(from_json("value", schema).alias("data")) \
-        .select(
-            col("data.name").alias("city"),
-            col("data.main.temp").alias("temperature"),
-            col("data.main.humidity").alias("humidity"),
-            col("data.dt").alias("timestamp"),
-            current_timestamp().alias("processed_at")
-        )
-
-    # 5. Write to MongoDB
-    # We use 'append' mode to add new weather records as they arrive.
-    query = weather_df.writeStream \
-        .format("mongodb") \
-        .option("checkpointLocation", "/opt/spark/work/weather_checkpoint") \
-        .option("forceDeleteTempCheckpointLocation", "true") \
-        .outputMode("append") \
-        .start()
-
-    query.awaitTermination()
-
-if __name__ == "__main__":
-    start_etl()
+    submit_etl

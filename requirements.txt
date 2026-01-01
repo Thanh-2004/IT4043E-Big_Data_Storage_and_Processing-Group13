@@ -1,0 +1,9 @@
+# Local Development (Producer & ETL dev)
+kafka-python==2.0.2
+pyspark==3.5.0
+psycopg2-binary==2.9.9
+apache-airflow==2.10.4
+
+# Airflow/Spark Dependencies (Reference only - these run in Docker)
+apache-airflow-providers-apache-spark==4.7.0
+apache-airflow-providers-mongo==4.0.0

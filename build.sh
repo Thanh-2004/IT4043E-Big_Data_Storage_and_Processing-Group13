@@ -10,6 +10,9 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+CLUSTER_NAME="kind"
+AIRFLOW_IMAGE="my-airflow-custom:2.10.4"
+
 echo -e "${BLUE}🚀 Starting Deployment Sequence...${NC}"
 
 # ------------------------------------------------------------------------------
@@ -19,6 +22,25 @@ echo -e "\n${BLUE}[1/6] Applying Kubernetes Manifests...${NC}"
 kubectl create namespace mongodb --dry-run=client -o yaml | kubectl apply -f -echo -e "${GREEN}    ✅ Namespace 'mongodb' ensures.${NC}"
 
 kubectl apply -f manifests/
+
+# ------------------------------------------------------------------------------
+# STEP 1.5: BUILD CUSTOM AIRFLOW IMAGE (Java 17 + Spark Clients)
+# ------------------------------------------------------------------------------
+echo -e "\n${BLUE}[1.5/6] Building & Loading Custom Airflow Image...${NC}"
+
+# 1. Build the image locally
+#    (Make sure src/airflow/Dockerfile exists!)
+docker build -t $AIRFLOW_IMAGE -f src/airflow/Dockerfile .
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Docker Build Failed! Stopping.${NC}"
+    exit 1
+fi
+
+# 2. Load it into Kind so Kubernetes can find it
+echo -e "    🚚 Loading image into Kind cluster: $CLUSTER_NAME..."
+kind load docker-image $AIRFLOW_IMAGE --name $CLUSTER_NAME
+echo -e "${GREEN}    ✅ Image loaded successfully.${NC}"
+
 # ------------------------------------------------------------------------------
 # STEP 2: DEPLOY AIRFLOW (Helm)
 # ------------------------------------------------------------------------------
@@ -31,6 +53,7 @@ helm repo update >/dev/null 2>&1
 # Install/Upgrade Airflow using your custom values
 # Release Name: 'airflow' -> Service Name: 'airflow-webserver'
 helm upgrade --install airflow apache-airflow/airflow \
+  --version 1.15.0 \
   --namespace airflow \
   --create-namespace \
   -f helm/airflow-values.yaml
@@ -76,22 +99,6 @@ fi
 
 kubectl cp "$LOCAL_SCRIPT" default/$MASTER_POD:$REMOTE_PATH
 echo -e "${GREEN}    ✅ Script uploaded successfully.${NC}"
-
-# ------------------------------------------------------------------------------
-# STEP 5: SUBMIT SPARK JOB
-# ------------------------------------------------------------------------------
-echo -e "\n${BLUE}[5/6] Submitting Spark Job...${NC}"
-
-# Run interactively in the background
-kubectl exec -it -n default deployment/spark-master -- bash -c 'export POD_IP=$(hostname -i); /opt/spark/bin/spark-submit \
-  --master spark://spark-master-svc:7077 \
-  --conf spark.driver.host=$POD_IP \
-  --conf spark.driver.bindAddress=0.0.0.0 \
-  --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.mongodb.spark:mongo-spark-connector_2.12:10.3.0 \
-  /opt/spark/jobs/weather_etl.py' &
-
-SPARK_PID=$!
-sleep 5
 
 # ------------------------------------------------------------------------------
 # STEP 6: FORWARD PORTS
