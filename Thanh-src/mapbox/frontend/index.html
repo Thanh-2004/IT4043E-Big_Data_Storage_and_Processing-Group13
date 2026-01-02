@@ -2,24 +2,63 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Modular Wind App</title>
+    <title>Vietnam Weather Viz</title>
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
     <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="./css/style.css">
+    
+    <style>
+        .tab-container { display: flex; gap: 5px; margin-bottom: 15px; }
+        .tab-btn {
+            flex: 1; padding: 8px 5px; border: 1px solid #444; background: #1e1e24; 
+            cursor: pointer; border-radius: 6px; color: #aaa; transition: 0.2s; font-size: 0.9rem;
+        }
+        .tab-btn:hover { background: #333; color: white; }
+        
+        .tab-btn.active { background: #007bff; color: white; border-color: #007bff; font-weight: bold; }
+        
+        /* Màu riêng cho từng tab khi active */
+        #tab-temp.active { background: #ff5722; border-color: #ff5722; }
+        #tab-rain.active { background: #0288d1; border-color: #0288d1; }
+        #tab-cloud.active { background: #78909c; border-color: #78909c; }
+    </style>
 </head>
 <body>
 
 <div id="loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...</div>
 
 <div class="controls">
-    <h3 style="margin:0 0 5px 0; font-size: 1.2rem;">Gió Việt Nam (Modular)</h3>
-    <p style="font-size:0.8rem; color:#888; margin-bottom: 20px;">Code đã được tối ưu module</p>
+    <h3 style="margin:0 0 10px 0; font-size: 1.2rem;">Thời tiết Việt Nam</h3>
+
+    <div class="tab-container">
+        <button id="tab-wind" class="tab-btn active" onclick="App.switchTab('wind')">
+            <i class="fa-solid fa-wind"></i> Gió
+        </button>
+        <button id="tab-temp" class="tab-btn" onclick="App.switchTab('temp')">
+            <i class="fa-solid fa-temperature-half"></i> Nhiệt
+        </button>
+        <button id="tab-rain" class="tab-btn" onclick="App.switchTab('rain')">
+            <i class="fa-solid fa-cloud-showers-heavy"></i> Mưa
+        </button>
+        <button id="tab-cloud" class="tab-btn" onclick="App.switchTab('cloud')">
+            <i class="fa-solid fa-cloud"></i> Mây
+        </button>
+    </div>
 
     <div class="status-box">
         <span class="time-big" id="clock-time">--:--</span>
         <div class="date-small" id="clock-date">Chưa có dữ liệu</div>
+    </div>
+
+    <div class="legend-container" id="legend-box" style="display:none; margin-bottom: 20px;">
+        <div class="legend-title" id="legend-title" style="font-size: 0.85rem; color: #ccc; margin-bottom: 5px;">Thông số</div>
+        <div class="legend-bar" id="legend-bar" style="height: 12px; border-radius: 6px; background: #333; margin-bottom: 5px; border: 1px solid #555;"></div>
+        <div class="legend-labels" style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #888;">
+            <span id="legend-min">0</span>
+            <span id="legend-max">100</span>
+        </div>
     </div>
     
     <input type="range" id="hour-slider" min="0" max="239" value="0">

@@ -19,6 +19,8 @@ let isPlaying = false;
 let currentGlobalHour = 0;
 let timer = null;
 
+let currentMode = 'wind'; // Mặc định là gió
+
 // Hàm xử lý dữ liệu thô
 function processData(flatData) {
     globalData = {};
@@ -38,19 +40,55 @@ function getStationData(hourIndex, dateKey) {
 
     const stations = [];
     dayRecords.forEach(rec => {
+        // Gió
         const u = (rec.hourly_wind_u && rec.hourly_wind_u[hourIndex]) || 0;
         const v = (rec.hourly_wind_v && rec.hourly_wind_v[hourIndex]) || 0;
         const speed = Math.sqrt(u*u + v*v);
         let bearing = (Math.atan2(u, v) * 180 / Math.PI);
         if (bearing < 0) bearing += 360;
 
+        // Các chỉ số khác
+        const temp = (rec.hourly_temps && rec.hourly_temps[hourIndex]) || 0;
+        const rain = (rec.hourly_rain && rec.hourly_rain[hourIndex]) || 0;
+        const cloud = (rec.hourly_clouds && rec.hourly_clouds[hourIndex]) || 0;
+
         stations.push({
             coord: [rec.location.lon, rec.location.lat],
             speed: speed,
-            bearing: bearing
+            bearing: bearing,
+            temp: temp,   // <--- Mới
+            rain: rain,   // <--- Mới
+            cloud: cloud  // <--- Mới
         });
     });
     return stations;
+}
+
+function updateLayerStyle() {
+    // 1. Cập nhật màu sắc cho các vòng tròn (Halo)
+    if (map.getLayer('station-heat-halo')) {
+        map.setPaintProperty('station-heat-halo', 'circle-color', Config.colors[currentMode]);
+    }
+
+    // 2. Ẩn/Hiện đường gió (Chỉ hiện khi mode == 'wind')
+    if (map.getLayer('wind-lines-draw')) {
+        const visibility = (currentMode === 'wind') ? 'visible' : 'none';
+        map.setLayoutProperty('wind-lines-draw', 'visibility', visibility);
+    }
+}
+
+function updateLegendUI() {
+    const config = Config.legends[currentMode];
+    if (!config) return;
+
+    // Hiển thị box (lúc đầu nó ẩn)
+    document.getElementById('legend-box').style.display = 'block';
+
+    // Cập nhật nội dung
+    document.getElementById('legend-title').innerText = config.title;
+    document.getElementById('legend-bar').style.background = config.background;
+    document.getElementById('legend-min').innerText = config.min;
+    document.getElementById('legend-max').innerText = config.max;
 }
 
 // Cập nhật khung hình
@@ -72,14 +110,21 @@ async function updateFrame(globalHour) {
         features: currentStations.map(s => ({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: s.coord },
-            properties: { speed: s.speed }
+            properties: { 
+                speed: s.speed,
+                temp: s.temp,
+                rain: s.rain,
+                cloud: s.cloud
+            }
         }))
     };
     const source = map.getSource('station-heat-source');
     if (source) source.setData(stationGeoJSON);
 
     // Reset đường gió với dữ liệu trạm mới
-    windSystem.initLines(currentStations);
+    if (currentMode === 'wind') {
+        windSystem.initLines(currentStations);
+    }
 }
 
 // Vòng lặp Animation
@@ -122,6 +167,7 @@ window.App = {
             slider.value = 0;
             
             await updateFrame(0);
+            updateLegendUI();
 
             btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Đã tải xong';
             loading.style.display = 'none';
@@ -150,6 +196,24 @@ window.App = {
                 await updateFrame(currentGlobalHour);
             }, 4000); 
         }
+    },
+    switchTab: function(mode) {
+        currentMode = mode;
+        
+        // Cập nhật UI nút bấm
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        // Tìm nút tương ứng để active (cách đơn giản)
+        const btnId = `tab-${mode}`;
+        const btn = document.getElementById(btnId);
+        if(btn) btn.classList.add('active');
+
+        // Cập nhật bản đồ
+        updateLayerStyle();
+
+        updateLegendUI();
+        
+        // Vẽ lại khung hình hiện tại với chế độ mới
+        updateFrame(currentGlobalHour);
     }
 };
 
@@ -178,7 +242,11 @@ map.on('load', () => {
         id: 'wind-lines-draw',
         type: 'line',
         source: 'wind-lines',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        layout: { 
+            'line-join': 'round', 
+            'line-cap': 'round',
+            'visibility': 'visible' // Mặc định hiện
+        },
         paint: {
             'line-color': 'rgba(255, 255, 255, 0.85)',
             'line-width': ['interpolate', ['linear'], ['zoom'], 4, 2.5, 10, 1.5]
