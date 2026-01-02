@@ -7,15 +7,13 @@ PROJECT_ROOT = os.path.dirname(
 )
 sys.path.insert(0, PROJECT_ROOT)
 
-from schemas.spark.schema import raw_schema
+import math
 import pyspark
-from pyspark.sql import SparkSession
-from pyspark.sql.types import *
-from pyspark.sql.window import Window
 import pyspark.sql.functions as F
-import unicodedata
-import re
-
+from pyspark.sql.types import *
+from pyspark.sql import SparkSession
+from pyspark.sql.window import Window
+from schemas.spark.schema import raw_schema
 
 import logging
 # Setting up logging configurations
@@ -249,8 +247,103 @@ def bronze_silver_transform(bronze_df: pyspark.sql.DataFrame) -> pyspark.sql.Dat
     # Unpersist cached dataframe
     tmp_df.unpersist()
     
-    logger.info("BRONZE -> SILVER TRANSFORMATION COMPLETED!")
+    logger.info("BRONZE -> SILVER TRANSFORMATION COMPLETED!\n")
     return silver_df
+
+def silver_gold_transform(silver_df: pyspark.sql.DataFrame) -> pyspark.sql.DataFrame:
+    feature_exprs = [F.col(col_name) for col_name in silver_df.columns]
+    # Pre-compute used mathematical constants
+    TWO_PI = 2 * math.pi
+    HOURS_PER_DAY = 24.0
+    DAYS_PER_YEAR = 365.25
+    KHM_TO_MS = 3.6
+
+    log_step_headline(message="STEP 4.1: Extract cyclical time encoding", border_char='-')
+    hour_col = F.hour("timestamp")
+    day_of_year_col = F.dayofyear("timestamp")
+
+    feature_exprs.extend(
+        [
+            F.sin(TWO_PI * hour_col / HOURS_PER_DAY).alias("hour_sin"),
+            F.cos(TWO_PI * hour_col / HOURS_PER_DAY).alias("hour_cos"),
+            F.sin(TWO_PI * day_of_year_col / DAYS_PER_YEAR).alias("day_of_year_sin"),
+            F.cos(TWO_PI * day_of_year_col / DAYS_PER_YEAR).alias("day_of_year_cos")
+        ]
+    )
+    logger.info("CREATE Hour AND Day of Year's Sine AND Cosine COMPONENTS!\n")
+
+    log_step_headline(message="STEP 4.2: Process lagged features", border_char='-')
+    lag_features = ["temperature_2m", "dew_point_2m"]
+    available_lag_features = [feature for feature in lag_features if feature in silver_df.columns]
+    logger.info(f"Found {len(available_lag_features)} lagging features: {available_lag_features}!")
+    lag_hours = [1, 2, 3, 24]
+    w_lag = Window.partitionBy("city").orderBy("timestamp")
+
+    for i, col_name in enumerate(available_lag_features, 1):
+        c = F.col(col_name)
+        logger.info(f"Finding lagged records for {col_name} ({i}/{len(available_lag_features)})")
+        for hour in lag_hours:
+            lag_col_name = f"{col_name}_lag_{hour}hrs"
+            feature_exprs.append(
+                F.lag(c, hour).over(w_lag).alias(lag_col_name)
+            )
+            logger.info(f"Finish processing {hour}-lag feature: {lag_col_name}")
+        logger.info(f"Done finding lagged reocords for {col_name}")
+    logger.info('\n')
+
+    log_step_headline(message="STEP 4.3: Discover data trends")
+    rolling_features = [
+        "temperature_2m",
+        "relative_humidity_2m",
+        "dew_point_2m",
+        "wind_speed_10m",
+        "precipitation"
+    ]
+    available_rolling_features = [feature for feature in rolling_features if feature in silver_df.columns]
+    logger.info(f"Found {len(available_rolling_features)} rolling features: {available_rolling_features}")
+
+    rolling_windows = {
+        "12h": Window.partitionBy("city").orderBy("timestamp").rowsBetween(-12, -1),
+        "1d": Window.partitionBy("city").orderBy("timestamp").rowsBetween(-24, -1),
+        "3d": Window.partitionBy("city").orderBy("timestamp").rowsBetween(-72, -1),
+        "1w":  Window.partitionBy("city").orderBy("timestamp").rowsBetween(-168, -1)
+    }
+
+    for window_name, w_rolling in rolling_windows.items():
+        logger.info(f"Starting rolling back {window_name}...")
+        for col_name in available_rolling_features:
+            c= F.col(col_name)
+            feature_exprs.extend([
+                F.avg(c).over(w_rolling).alias(f"{col_name}_mean_{window_name}"),
+                F.stddev(c).over(w_rolling).alias(f"{col_name}_std_{window_name}")
+            ])
+            logger.info(f"Done calculating rolling statistic for {col_name} in {window_name}")
+    logger.info('\n')
+
+    log_step_headline(message="STEP 4.4: Extract advanced weather feature")
+    logger.info("Calculating vapor pressure...")
+    vapor_pressure = 6.112 * F.exp((17.67 * F.col("dew_point_2m")) / (F.col("dew_point_2m") + 243.5))
+    logger.info("Calculating saturation vapor pressure")
+    saturation_vapor_pressure = 6.112 * F.exp((17.67 * F.col("temperature_2m")) / (F.col("temperature_2m") + 243.5))
+    logger.info("Calculating vapor pressure deficit...")
+    vapor_pressure_deficit = saturation_vapor_pressure - vapor_pressure
+    logger.info("Calculating apparent temperature...")
+    apparent_temperature = F.col("temperature_2m") + 0.33 * vapor_pressure - 0.7 * F.col("wind_speed_10m") / KHM_TO_MS - 4.0
+    feature_exprs.extend(
+        [
+            vapor_pressure.alias("vapor_pressure"),
+            saturation_vapor_pressure.alias("saturation_vapor_pressure"),
+            vapor_pressure_deficit.alias("vapor_pressure_deficit"),
+            apparent_temperature.alias("apparent_temperature")
+        ]
+    )
+    logger.info("Done extracting 4 advanced weather features!\n")
+
+    gold_df = silver_df.select(*feature_exprs)
+    logger.info("Ensure valid rolling features..")
+    gold_df = gold_df.dropna(subset=["temperature_2m_mean_1w"])
+    logger.info("SILVER -> GOLD TRANSFORMATION COMPLETED!\n")
+    return gold_df
 
 def main():
     log_step_headline(message="STEP 1: Create SparkSession")
@@ -272,10 +365,15 @@ def main():
 
     log_step_headline(message="STEP 3: Perform Bronze -> Silver data transition")
     silver_df = bronze_silver_transform(bronze_df)
+    silver_df.cache()
 
+    logger.info(f"Before Silver -> Gold transformation: {silver_df.count()} data records!")
+    logger.info(message="STEP 4: Perform Gold -> Silver data transition")
+    gold_df = silver_gold_transform(silver_df)
+    gold_df.cache()
+    logger.info(f"After Silver -> Gold transformation: {gold_df.count()} data records")
     # HEADS-UP: ADD THE CODE TO WRITE silver_df to Apache Iceberg here
 
 
 if __name__ == '__main__':
     main()
-
