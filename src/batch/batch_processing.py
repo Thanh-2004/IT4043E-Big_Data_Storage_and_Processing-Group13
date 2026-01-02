@@ -146,9 +146,13 @@ def bronze_silver_transform(bronze_df: pyspark.sql.DataFrame) -> pyspark.sql.Dat
 
     # Weighted Moving Average imputation
     log_step_headline(message="STEP 3.3: Impute with Weighted Moving Average (WMA)", border_char='-')
-    # Take the last two and the next two hours weather data
-    # HEADS-UP: THE TRIAL SAMPLE DATA HAS ONLY DATA FOR ONE CITY ONLY, SO NO PARTITION IS PERFORM
-    w_spec = Window.orderBy("timestamp") 
+    w_spec = Window.partitionBy("city").orderBy("timestamp") 
+    # Forward-fill = Look back 24 hours for a non-NULL value (if WMA failed) 
+    w_ff = Window.partitionBy("city").orderBy("timestamp").rowsBetween(-24, -1)
+    # Backward-fill = Look forward 24 hours for a non-NULL value (if WMA failed)
+    w_bf = Window.partitionBy("city").orderBy("timestamp").rowsBetween(1, 24)
+    # Final resolution (no data found)
+    default_val = F.lit(-100.0)
     
     # Identify columns needing imputation
     scalar_cols = [col for col in limit_dict.keys() if col not in wind_cols]
@@ -163,7 +167,7 @@ def bronze_silver_transform(bronze_df: pyspark.sql.DataFrame) -> pyspark.sql.Dat
             imputation_exprs.append(F.col(col_name))
             continue
 
-        # Get neighbors with explicit offsets
+        # Take the last three and the next three hours weather data
         prev3 = F.lag(col_name, 3).over(w_spec)
         prev2 = F.lag(col_name, 2).over(w_spec)
         prev1 = F.lag(col_name, 1).over(w_spec)
@@ -192,10 +196,17 @@ def bronze_silver_transform(bronze_df: pyspark.sql.DataFrame) -> pyspark.sql.Dat
 
         # WMA = weighted_sum / total_weight (null if no neighbors exist)
         wma = F.when(total_weight > 0, weighted_sum / total_weight).otherwise(F.lit(None))
+        # Forward-fill
+        ff = F.last(col_name, ignorenulls=True).over(w_ff)
+        # Backward-fill
+        bf = F.first(col_name, ignorenulls=True).over(w_bf)
         
         # Fill nulls with WMA
         imputation_exprs.append(
-            F.coalesce(F.col(col_name), wma).alias(col_name)
+            F.coalesce(
+                F.col(col_name),
+                wma, ff, bf, default_val
+            ).alias(col_name)
         )
         logger.info(f"Done imputing data for column {col_name}.")
 
