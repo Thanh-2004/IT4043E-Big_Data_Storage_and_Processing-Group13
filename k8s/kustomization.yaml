@@ -4,3 +4,4 @@ resources:
   - ./kafka/
   - ./minio/
   - ./kafka-connect/
+  - ./mongodb/mongo-deployment.yaml

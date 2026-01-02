@@ -41,3 +41,17 @@ This applies resources defined in the `kustomization.yaml` file found in this `k
 ```
 kubectl apply -f namespace.yaml
 ```
+
+- Install Nessie Helm chart:
+
+    + Create the database named `nessie` in MongoDB: run `minikube tunnel` in another terminal and access Mongo Express at `localhost:8081`, then create the database
+
+    + Run:
+        ```
+        helm install -n bigdata-pipeline nessie nessie-helm/nessie \
+            --set replicaCount=1 \
+            --set-string resources.requests.memory=500Mi \
+            --set-string resources.limits.memory=1Gi \
+            --set-string resources.requests.cpu=1 \
+            -f ./k8s/nessie/values.yaml
+        ```
