@@ -8,7 +8,10 @@ helm install -n bigdata-pipeline nessie nessie-helm/nessie \
     --set-string resources.requests.cpu=1 \
     -f ./k8s/nessie/values.yaml
 ```
+Currently not resolved issue with connecting to MongoDB. Remove -f in final line of command to skip using MongoDB for version control; Nessie will store versioning metadata in-memory -> can use Nessie but will lose track of tables once K8s cluster is restarted.
 
 Service for accessing Nessie catalog: `nessie:19120`
 
 Full URI: `http://nessie:19120/api/v2`
+
+To access web UI: `kubectl port-forward -n bigdata-pipeline svc/nessie 19120:19120` -> `localhost:19120`

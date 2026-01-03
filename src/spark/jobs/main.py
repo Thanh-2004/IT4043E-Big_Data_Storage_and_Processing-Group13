@@ -41,7 +41,7 @@ def create_iceberg_table(spark: SparkSession):
     # add partitioning
 
 def get_spark_session():
-    warehouse_path = os.getenv("CATALOG_WAREHOUSE", "s3a://warehouse/hadoop")
+    warehouse_path = os.getenv("CATALOG_WAREHOUSE", "s3a://warehouse/nessie")
     catalog_uri = os.getenv("CATALOG_URI", "http://nessie:19120/api/v2")
     s3_endpoint = os.getenv("S3_ENDPOINT", "http://minio-internal-service:9000")
     aws_access_key = os.getenv("AWS_ACCESS_KEY_ID", "minioadmin")
@@ -59,9 +59,9 @@ def get_spark_session():
         
             # Catalog configs
             .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
-            .config("spark.sql.catalog.lakehouse.type", "hadoop")
+            .config("spark.sql.catalog.lakehouse.type", "nessie")
             .config("spark.sql.catalog.lakehouse.warehouse", warehouse_path)
-            # .config("spark.sql.catalog.lakehouse.uri", catalog_uri)
+            .config("spark.sql.catalog.lakehouse.uri", catalog_uri)
             .config("spark.sql.catalog.lakehouse.ref", "main") # Nessie catalog branch to work in
             .config("spark.sql.catalog.lakehouse.authentication.type", "NONE") # Nessie authentication type (NONE, BEARER, OAUTH2, AWS)
             .config("spark.sql.defaultCatalog", "lakehouse")
