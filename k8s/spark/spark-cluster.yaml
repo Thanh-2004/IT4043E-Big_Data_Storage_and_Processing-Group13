@@ -40,45 +40,57 @@ spec:
           type: Directory
       - name: ivy-cache
         emptyDir: {}
----
-# 3. Spark Worker Deployment (UPDATED for Apache Image)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: spark-worker
-  namespace: bigdata-pipeline
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: spark-worker
-  template:
-    metadata:
-      labels:
-        app: spark-worker
-    spec:
-      containers:
-      - name: spark-worker
-        image: apache/spark:3.5.0 # <--- Switched to Official Image
-        command: [
-          "/opt/spark/bin/spark-class", 
-          "org.apache.spark.deploy.worker.Worker",
-          "spark://spark-master-svc:7077"
-        ]
-        volumeMounts:
-        - name: spark-jobs
-          mountPath: /opt/spark/jobs
-        - name: spark-work-dir 
-          mountPath: /opt/spark/work
-        - name: ivy-cache
-          mountPath: /tmp
-      volumes:
-      - name: spark-jobs
-        hostPath:
-          path: /mnt/spark/jobs
-          type: Directory
-      - name: spark-work-dir 
-        emptyDir: {}
-      - name: ivy-cache
-        emptyDir: {}
+# ---
+# # 3. Spark Worker Deployment (UPDATED for Apache Image)
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: spark-worker
+#   namespace: bigdata-pipeline
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels:
+#       app: spark-worker
+#   template:
+#     metadata:
+#       labels:
+#         app: spark-worker
+#     spec:
+#       containers:
+#       - name: spark-worker
+#         image: apache/spark:3.5.0 # <--- Switched to Official Image
+#         command: [
+#           "/opt/spark/bin/spark-class", 
+#           "org.apache.spark.deploy.worker.Worker",
+#           "spark://spark-master-svc:7077"
+#         ]
+#         env:
+#         - name: SPARK_WORKER_CORES
+#           value: "2"
+#         - name: SPARK_WORKER_MEMORY
+#           value: "2g"
+#         volumeMounts:
+#         - name: spark-jobs
+#           mountPath: /opt/spark/jobs
+#         - name: spark-work-dir 
+#           mountPath: /opt/spark/work
+#         - name: ivy-cache
+#           mountPath: /tmp
+#       resources:
+#         requests:
+#           cpu: "2"
+#           memory: "2Gi"
+#         limits:
+#           cpu: "2"
+#           memory: "2Gi"
+#       volumes:
+#       - name: spark-jobs
+#         hostPath:
+#           path: /mnt/spark/jobs
+#           type: Directory
+#       - name: spark-work-dir 
+#         emptyDir: {}
+#       - name: ivy-cache
+#         emptyDir: {}
       

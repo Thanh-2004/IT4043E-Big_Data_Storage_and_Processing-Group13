@@ -19,7 +19,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spark-ui-external
+  name: spark-master-ui-external
   namespace: bigdata-pipeline
 spec:
   type: LoadBalancer
@@ -29,3 +29,17 @@ spec:
     - name: web-ui
       port: 8082
       targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-driver-ui-external
+  namespace: bigdata-pipeline
+spec:
+  type: LoadBalancer
+  selector:
+    app: spark-master
+  ports:
+    - name: web-ui
+      port: 4040
+      targetPort: 4040

@@ -6,6 +6,10 @@ Later to stop the mount: `pkill -f "minikube mount"`
 
 - Apply as usual: `kubectl apply -f k8s/spark/`
 
-- Open tunnel to check web UI: `minikube tunnel` -> `localhost:8082`
+- Open tunnel to check web UI: `minikube tunnel`
+
+    + `localhost:8082` for Spark Master UI
+
+    + `localhost:4040` for Spark Driver UI (available when a Spark job is submitted and running)
 
 - Todo: Submit job to test + introduce Airflow

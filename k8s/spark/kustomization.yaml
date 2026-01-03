@@ -1,0 +1,3 @@
+resources:
+  - spark-cluster.yaml
+  - spark-service.yaml
