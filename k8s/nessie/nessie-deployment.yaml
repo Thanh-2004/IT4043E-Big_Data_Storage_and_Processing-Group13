@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nessie
+  namespace: bigdata-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nessie
+  template:
+    metadata:
+      labels:
+        app: nessie
+    spec:
+      containers:
+      - name: nessie
+        image: projectnessie/nessie:0.76.6
+        env:
+          - name: NESSIE_VERSION_STORE_TYPE
+            value: MONGODB
+          - name: QUARKUS_MONGODB_DATABASE
+            value: nessie
+          - name: QUARKUS_MONGODB_CONNECTION_STRING
+            value: mongodb://mongo:mongo123@mongodb:27017/nessie?authSource=admin
+        ports:
+          - containerPort: 19120

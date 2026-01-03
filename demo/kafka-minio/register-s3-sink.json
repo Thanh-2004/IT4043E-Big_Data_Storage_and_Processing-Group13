@@ -12,7 +12,7 @@
     "storage.class": "io.confluent.connect.s3.storage.S3Storage",
     "format.class": "io.confluent.connect.s3.format.json.JsonFormat",
 
-    "flush.size": "100",
+    "flush.size": "5",
 
     "schema.compatibility": "NONE",
 
@@ -25,7 +25,7 @@
     "store.url": "http://minio:9000",
     "path.style.access.enabled": "true",
 
-    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "key.converter.schemas.enable": "false",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false"
