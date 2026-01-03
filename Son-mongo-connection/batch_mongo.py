@@ -16,7 +16,7 @@ Processing:
   3. Ghi kết quả vào MongoDB (overwrite), đổi thành append cx đc
 """
 
-
+########################## Config và Source File ##########################
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.yaml")
 CSV_FILE = os.path.join(SCRIPT_DIR, "weather_history_2000-01-01_2025-12-05.csv")
@@ -36,6 +36,8 @@ print(f"[DB] Database: {MONGODB_DATABASE}")
 print("="*60)
 
 print("\n[SPARK] Creating Spark Session...")
+
+################################ Spark Session Start ##############################
 spark = (
     SparkSession.builder
     .appName("DemoWeatherBatchToMongoDB")
@@ -48,6 +50,8 @@ spark = (
 spark.sparkContext.setLogLevel("WARN")
 print("[OK] Spark Session created successfully!")
 print("[DATA] Reading CSV file...")
+
+############################### Đọc dữ liệu CSV bằng spark ##############################
 df = (
     spark.read
     .option("header", "true")
@@ -55,7 +59,7 @@ df = (
     .csv(CSV_FILE)
 )
 
-# Chuyển đổi tên cột và kiểu dữ liệu
+################################### Xử lý dữ liệu ##############################
 print("[PROCESS] Processing data...")
 df = df \
     .withColumnRenamed("Temperature (°C)", "temperature") \
@@ -64,7 +68,6 @@ df = df \
     .withColumnRenamed("Wind Speed (km/h)", "wind_speed") \
     .withColumnRenamed("Weather Code", "weather_code")
 
-# Chuyển đổi datetime
 df = df.withColumn("datetime", F.to_timestamp("datetime"))
 df = df.withColumn("year", F.year("datetime"))
 df = df.withColumn("month", F.month("datetime"))
@@ -87,7 +90,7 @@ yearly_stats = df.groupBy("year").agg(
 
 yearly_stats.show()
 
-# Ghi vào MongoDB collection: yearly_summary
+################################## Ghi vào MongoDB collection: yearly_summary ############################
 print("\n[WRITE] Writing yearly statistics to MongoDB...")
 try:
     (
@@ -116,7 +119,7 @@ monthly_stats = df.groupBy("year", "month").agg(
 print(f"Total months: {monthly_stats.count()}")
 monthly_stats.show(12)
 
-# Ghi vào MongoDB collection: monthly_summary
+################################## Ghi vào MongoDB collection: monthly_summary ############################
 print("\n[WRITE] Writing monthly statistics to MongoDB...")
 try:
     (
@@ -144,7 +147,7 @@ hottest_days = (
     .limit(10)
 )
 
-# Ghi vào MongoDB collection: hottest_days
+############################## Ghi vào MongoDB collection: hottest_days ############################
 print("\n[WRITE] Writing hottest days to MongoDB...")
 try:
     (
