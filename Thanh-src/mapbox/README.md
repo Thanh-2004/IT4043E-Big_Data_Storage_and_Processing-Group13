@@ -75,3 +75,11 @@ Using VS Code (Recommended):
 2. Right-click on frontend/index.html.
 3. Select "Open with Live Server".
 
+### 4. Run with Docker
+
+Run this command to build docker container:
+```
+docker compose up --build -d
+```
+
+And run ```docker compose down``` when finish.

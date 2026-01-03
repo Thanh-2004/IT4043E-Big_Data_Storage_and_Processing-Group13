@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # Service 1: Ứng dụng của bạn
+  app:
+    build: .
+    container_name: weather-app
+    restart: always
+    ports:
+      - "8080:3000"  # Chạy ở cổng 80 (Web chuẩn) thay vì 3000
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/weather_db
+      - PORT=3000
+      - MAPBOX_TOKEN=pk.eyJ1IjoibnR0aGFuaDA4MDMiLCJhIjoiY21oeDJmZzZ5MDY2NjJsb3VmMmw2cnZvbiJ9.SidifhDOD6tL4x_qYkjEBw
+    depends_on:
+      - mongo
+
+  # Service 2: Database MongoDB
+  mongo:
+    image: mongo:latest
+    container_name: weather-mongo
+    restart: always
+    volumes:
+      - mongo-data:/data/db # Lưu dữ liệu vĩnh viễn, không mất khi tắt container
+
+volumes:
+  mongo-data:

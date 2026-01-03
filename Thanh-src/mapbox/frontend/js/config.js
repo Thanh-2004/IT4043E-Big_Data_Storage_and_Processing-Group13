@@ -1,6 +1,6 @@
 export const Config = {
     // Cấu hình Mapbox
-    mapboxToken: 'pk.eyJ1IjoibnR0aGFuaDA4MDMiLCJhIjoiY21oeDJmZzZ5MDY2NjJsb3VmMmw2cnZvbiJ9.SidifhDOD6tL4x_qYkjEBw',
+    mapboxToken: window.env?.MAPBOX_TOKEN,
     
     // Cấu hình Gió
     haloRadius: 0.8,

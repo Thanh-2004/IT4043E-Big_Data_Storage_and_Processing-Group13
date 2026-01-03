@@ -7,7 +7,8 @@ export async function fetchWeatherData() {
     const startStr = start.toISOString().split('T')[0];
     const endStr = end.toISOString().split('T')[0];
 
-    const res = await fetch(`http://localhost:3000/api/range?start=${startStr}&end=${endStr}`);
+    // const res = await fetch(`http://localhost:3000/api/range?start=${startStr}&end=${endStr}`);
+    const res = await fetch(`/api/range?start=${startStr}&end=${endStr}`);
     const data = await res.json();
     return data;
 }
