@@ -1,4 +1,4 @@
-# 🔄 Bronze to Silver Transformation Logic
+# 🔄 Bronze-to-Silver Transformation Logic
 
 The transition from the **Bronze Layer** (Raw Ingestion) to the **Silver Layer** (Refined Data) is the core data cleaning and quality assurance step in our pipeline. This process ensures that downstream ML models receive consistent, physically valid, and continuous time-series data.
 
@@ -71,3 +71,55 @@ If the WMA fails (e.g., a data gap > 7 hours where no neighbors exist), we use a
 * **Vector Recomposition:** The imputed Wind $x$ and $y$ components are converted back to degrees using `atan2(y, x)` and normalized to the [0, 360) range.
 * **Cleanup:** Temporary vector columns are dropped.
 * **Result:** A clean, continuous, and scientifically valid dataset ready for the Apache Iceberg storage layer.
+
+<br>
+
+<hr style="border: 3px solid black;">
+
+<br>
+
+# 🔄 Silver-to-Gold Transformation Logic
+
+The **Gold Layer** transformation takes the cleaned, continuous time-series data from the Silver Layer and enriches it with advanced features designed specifically for Machine Learning models (such as LSTMs or XGBoost) to forecast `temperature_2m`.
+
+The transformation process involves four key steps:
+
+## 1. Cyclical Time Encoding
+Machine Learning models often struggle with raw cyclical features like "Hour of Day" (0-23) or "Day of Year" (1-365) because they interpret them linearly (e.g., 23 is mathematically far from 0, but physically adjacent).
+
+To fix this, we project time features onto a unit circle using sine and cosine transformations:
+
+$$x_{sin} = \sin\left(\frac{2\pi \cdot t}{\text{period}}\right), \quad x_{cos} = \cos\left(\frac{2\pi \cdot t}{\text{period}}\right)$$
+
+* **Hour of Day:** Encoded as `hour_sin` and `hour_cos` (Period = 24.0)
+* **Day of Year:** Encoded as `day_of_year_sin` and `day_of_year_cos` (Period = 365.25)
+
+## 2. Autoregressive (Lag) Features
+Weather forecasting relies heavily on the **Persistence Model**—the assumption that the future state of the atmosphere is strongly correlated with its recent past. We explicitly provide this historical context to the model.
+
+We generate lag features for **Temperature** (`temperature_2m`) and **Dew Point** (`dew_point_2m`) at the following intervals:
+* **1 hour, 2 hours, 3 hours:** To capture immediate short-term trends.
+* **24 hours:** To capture the daily diurnal cycle (e.g., the temperature at 8 AM today is highly correlated with the temperature at 8 AM yesterday).
+
+## 3. Rolling Statistics (Trend Discovery)
+To help the model understand the "state" of the weather system (e.g., "Is the week getting warmer?"), we calculate rolling **Mean** and **Standard Deviation** for key variables.
+
+**Target Variables:** `temperature_2m`, `relative_humidity_2m`, `dew_point_2m`, `wind_speed_10m`, `precipitation`.
+
+**Time Windows:**
+* **12 Hours (`_12hrs`):** Half-day trends (day/night transition).
+* **24 Hours (`_1d`):** Daily trends.
+* **72 Hours (`_3ds`):** Multi-day weather system movement.
+* **1 Week (`_1w`):** Weekly seasonality and longer-term shifts.
+
+## 4. Advanced Meteorological Features
+Instead of arbitrary variable interactions, we derive scientifically validated indices based on atmospheric thermodynamics. These features expose complex physical relationships to the linear layers of the ML model.
+
+| Feature | Formula / Logic | Scientific Basis & Reference |
+| :--- | :--- | :--- |
+| **Vapor Pressure ($e_a$)** | $6.112 \cdot \exp\left(\frac{17.67 \cdot T_{dew}}{T_{dew} + 243.5}\right)$ | Represents the partial pressure exerted by water vapor in the air. Unlike Relative Humidity, $e_a$ is an absolute measure of moisture independent of temperature changes. <br>📚 **Ref:** Bolton (1980), *"The Computation of Equivalent Potential Temperature"*. |
+| **Saturation Vapor Pressure ($e_s$)** | $6.112 \cdot \exp\left(\frac{17.67 \cdot T_{air}}{T_{air} + 243.5}\right)$ | The maximum pressure of water vapor the air can hold at the current temperature before saturation (fog/rain) occurs. Based on the **Tetens Equation**. |
+| **Vapor Pressure Deficit (VPD)** | $e_s - e_a$ | Measures the "drying power" of the air. A high VPD indicates dry air capable of high evaporation rates; a VPD near 0 indicates saturation (high probability of precipitation/fog). |
+| **Apparent Temperature (AT)** | $T_a + 0.33e_a - 0.70V_{m/s} - 4.0$ | A combined index quantifying how the weather "feels." It mathematically integrates the warming effect of humidity (inhibiting sweat evaporation) and the cooling effect of wind (advection). <br>📚 **Ref:** Steadman (1984), *"A Universal Scale of Apparent Temperature"*. (Australian BOM approximation). |
+
+> **Note on Data Trimming:** The generation of lagging and rolling features creates `NULL` values at the beginning of the dataset (the "burn-in" period). For example, a 1-week rolling average cannot be calculated for the first 168 hours of data. To ensure data quality, we drop the first week of records where these features are undefined.

@@ -291,7 +291,7 @@ def silver_gold_transform(silver_df: pyspark.sql.DataFrame) -> pyspark.sql.DataF
         logger.info(f"Done finding lagged reocords for {col_name}")
     logger.info('\n')
 
-    log_step_headline(message="STEP 4.3: Discover data trends")
+    log_step_headline(message="STEP 4.3: Discover data trends", border_char='-')
     rolling_features = [
         "temperature_2m",
         "relative_humidity_2m",
@@ -303,9 +303,9 @@ def silver_gold_transform(silver_df: pyspark.sql.DataFrame) -> pyspark.sql.DataF
     logger.info(f"Found {len(available_rolling_features)} rolling features: {available_rolling_features}")
 
     rolling_windows = {
-        "12h": Window.partitionBy("city").orderBy("timestamp").rowsBetween(-12, -1),
+        "12hrs": Window.partitionBy("city").orderBy("timestamp").rowsBetween(-12, -1),
         "1d": Window.partitionBy("city").orderBy("timestamp").rowsBetween(-24, -1),
-        "3d": Window.partitionBy("city").orderBy("timestamp").rowsBetween(-72, -1),
+        "3ds": Window.partitionBy("city").orderBy("timestamp").rowsBetween(-72, -1),
         "1w":  Window.partitionBy("city").orderBy("timestamp").rowsBetween(-168, -1)
     }
 
@@ -320,7 +320,7 @@ def silver_gold_transform(silver_df: pyspark.sql.DataFrame) -> pyspark.sql.DataF
             logger.info(f"Done calculating rolling statistic for {col_name} in {window_name}")
     logger.info('\n')
 
-    log_step_headline(message="STEP 4.4: Extract advanced weather feature")
+    log_step_headline(message="STEP 4.4: Extract advanced weather feature", border_char='-')
     logger.info("Calculating vapor pressure...")
     vapor_pressure = 6.112 * F.exp((17.67 * F.col("dew_point_2m")) / (F.col("dew_point_2m") + 243.5))
     logger.info("Calculating saturation vapor pressure")
@@ -340,8 +340,10 @@ def silver_gold_transform(silver_df: pyspark.sql.DataFrame) -> pyspark.sql.DataF
     logger.info("Done extracting 4 advanced weather features!\n")
 
     gold_df = silver_df.select(*feature_exprs)
-    logger.info("Ensure valid rolling features..")
-    gold_df = gold_df.dropna(subset=["temperature_2m_mean_1w"])
+
+    # Take the largest rolling and lagging windows of temperature_2m as representation
+    logger.info("Ensure valid rolling and lagging features..")
+    gold_df = gold_df.dropna(subset=["temperature_2m_mean_1w", "temperature_2m_std_1w", "temperature_2m_lag_24hrs"])
     logger.info("SILVER -> GOLD TRANSFORMATION COMPLETED!\n")
     return gold_df
 
@@ -368,12 +370,11 @@ def main():
     silver_df.cache()
 
     logger.info(f"Before Silver -> Gold transformation: {silver_df.count()} data records!")
-    logger.info(message="STEP 4: Perform Gold -> Silver data transition")
+    log_step_headline(message="STEP 4: Perform Gold -> Silver data transition")
     gold_df = silver_gold_transform(silver_df)
     gold_df.cache()
     logger.info(f"After Silver -> Gold transformation: {gold_df.count()} data records")
     # HEADS-UP: ADD THE CODE TO WRITE silver_df to Apache Iceberg here
-
 
 if __name__ == '__main__':
     main()
