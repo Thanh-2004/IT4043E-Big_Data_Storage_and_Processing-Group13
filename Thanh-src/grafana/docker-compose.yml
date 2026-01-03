@@ -1,0 +1,176 @@
+version: '3.8'
+
+services:
+  # 1. MinIO (Object Storage - Nơi lưu dữ liệu lâu dài)
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    networks:
+      - monitoring
+    volumes:
+      - minio_data:/data
+
+  # 2. Tạo sẵn bucket tên là 'thanos' trong MinIO khi khởi động
+  minio-mc:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (mc alias set minio http://minio:9000 minioadmin minioadmin); do echo '...waiting...' && sleep 1; done;
+      mc mb minio/thanos;
+      exit 0;
+      "
+    networks:
+      - monitoring
+
+  # 3. Prometheus (Thu thập dữ liệu)
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.min-block-duration=2h' # Bắt buộc cho Thanos
+      - '--storage.tsdb.max-block-duration=2h' # Bắt buộc cho Thanos
+      - '--web.enable-admin-api'
+    ports:
+      - "9090:9090"
+    depends_on:
+      - minio
+    networks:
+      - monitoring
+
+  # 4. Thanos Sidecar (Đẩy dữ liệu từ Prometheus lên MinIO)
+  thanos-sidecar:
+    image: thanosio/thanos:v0.32.5
+    container_name: thanos-sidecar
+    volumes:
+      - prometheus_data:/prometheus # Chung volume với Prometheus
+      - ./bucket_config.yaml:/etc/thanos/bucket_config.yaml
+    command:
+      - 'sidecar'
+      - '--tsdb.path=/prometheus'
+      - '--prometheus.url=http://prometheus:9090'
+      - '--objstore.config-file=/etc/thanos/bucket_config.yaml'
+    depends_on:
+      - prometheus
+      - minio
+    networks:
+      - monitoring
+
+  # 5. Thanos Store (Đọc dữ liệu lịch sử từ MinIO)
+  thanos-store:
+    image: thanosio/thanos:v0.32.5
+    container_name: thanos-store
+    volumes:
+      - ./bucket_config.yaml:/etc/thanos/bucket_config.yaml
+    command:
+      - 'store'
+      - '--objstore.config-file=/etc/thanos/bucket_config.yaml'
+    ports:
+      - "10902:10902"
+    depends_on:
+      - minio
+    networks:
+      - monitoring
+
+  # 6. Thanos Querier (Cổng truy vấn tổng hợp cho Grafana)
+  thanos-querier:
+    image: thanosio/thanos:v0.32.5
+    container_name: thanos-querier
+    command:
+      - 'query'
+      - '--store=thanos-sidecar:10901' # Lấy dữ liệu mới (Realtime)
+      - '--store=thanos-store:10901'   # Lấy dữ liệu cũ (Lịch sử)
+    ports:
+      - "10901:10901" # Grafana sẽ kết nối vào cổng này
+    networks:
+      - monitoring
+
+  # 7. Grafana (Hiển thị)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Dòng này để cài plugin MongoDB Community
+      - GF_INSTALL_PLUGINS=grafana-mongodb-datasource
+      - GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=grafana-mongodb-datasource
+    depends_on:
+      - thanos-querier
+    networks:
+      - monitoring
+
+  # 8. Node Exporter (Lấy metrics hệ thống Linux/Host)
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    ports:
+      - "9100:9100"
+
+    volumes:
+      - '/:/host:ro'
+    networks:
+      - monitoring
+
+  # 9. MongoDB mẫu (Để test)
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: examplepassword
+    ports:
+      - "27017:27017"
+    networks:
+      - monitoring
+
+  # 10. MongoDB Exporter (Lấy metrics từ Mongo)
+  mongodb_exporter:
+    image: percona/mongodb_exporter:0.40.0
+    container_name: mongodb_exporter
+    command:
+      - '--mongodb.uri=mongodb://root:examplepassword@mongo:27017/admin'
+    ports:
+      - "9216:9216"
+    depends_on:
+      - mongo
+    networks:
+      - monitoring
+
+  weather-exporter:
+      build: ./weather-exporter
+      container_name: weather_exporter
+      environment:
+        - MONGO_URI=mongodb://root:examplepassword@mongo:27017/ # Nhớ thay user/pass đúng của bạn
+        - DB_NAME=weather_db          # Tên DB của bạn
+        - COLLECTION_NAME=daily_weather # Tên Collection của bạn
+      ports:
+        - "8000:8000"
+      networks:
+        - monitoring # Nhớ cho chung mạng với Prometheus
+      depends_on:
+        - mongo
+      
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  minio_data:

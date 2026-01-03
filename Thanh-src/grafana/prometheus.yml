@@ -1,0 +1,25 @@
+# prometheus.yml
+global:
+  scrape_interval: 15s
+  external_labels:
+    monitor: 'my-monitor'
+    cluster: 'my-cluster' 
+    # Label này bắt buộc để Thanos phân biệt dữ liệu
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node_exporter' # Lấy thông số hệ thống
+    static_configs:
+      - targets: ['node_exporter:9100']
+
+  - job_name: 'mongodb_exporter' # Lấy thông số MongoDB
+    static_configs:
+      - targets: ['mongodb_exporter:9216']
+
+  - job_name: 'weather_exporter'
+    static_configs:
+      - targets: ['weather_exporter:8000']
+    scrape_interval: 15s
