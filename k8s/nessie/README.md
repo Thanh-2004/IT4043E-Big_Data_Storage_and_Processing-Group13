@@ -1,5 +1,7 @@
 # Nessie Catalog for Iceberg
 
+UPDATE 3/1: Using Helm chart fails to connect to MongoDB for version storing. Now use simple `Deployment` with Docker image. See `kustomization.yaml` and mentioned resources.
+
 ```
 helm install -n bigdata-pipeline nessie nessie-helm/nessie \
     --set replicaCount=1 \

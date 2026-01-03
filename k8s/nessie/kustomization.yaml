@@ -1,0 +1,3 @@
+resources:
+  - nessie-deployment.yaml
+  - nessie-service.yaml

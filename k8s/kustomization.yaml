@@ -5,3 +5,4 @@ resources:
   - ./minio/
   - ./kafka-connect/
   - ./mongodb/mongo-deployment.yaml
+  - ./nessie/
