@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 3000
 
 # 7. Lệnh chạy server
-CMD ["node", "backend/server.js"]
+CMD ["node", "backend/server.js"]git

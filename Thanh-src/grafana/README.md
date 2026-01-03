@@ -14,3 +14,10 @@ Add Prometheus resource with URL: ```http://thanos-querier:10901``` or ```http:/
 Add query, select metrics (e.g: weather_temperature_celcius), and Run queries. (for weather exporter)
 To import system metrics dashboard, import dashboard with the code ```1860```. (node exporter included)
 
+
+## Future work
+- Fix Thanos
+- Add more graphs
+- Connect with internal mongoDB
+
+
