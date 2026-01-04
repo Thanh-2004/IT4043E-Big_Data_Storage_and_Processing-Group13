@@ -35,9 +35,9 @@ mongoose.connect(MONGO_URI)
 app.get('/api/range', async (req, res) => {
     try {
         const { start, end } = req.query;
-        if (!start || !end) {
-            return res.status(400).json({ error: "Thiếu tham số start/end date" });
-        }
+        // if (!start || !end) {
+        //     return res.status(400).json({ error: "Thiếu tham số start/end date" });
+        // }
 
         // Gọi logic từ module dataLoader
         const data = await syncAndGetWeatherData(start, end);
