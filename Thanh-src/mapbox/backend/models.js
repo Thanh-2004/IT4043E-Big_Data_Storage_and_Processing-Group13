@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const WeatherSchema = new mongoose.Schema({
-    date: String,
-    location: { lat: Number, lon: Number },
+    timestamp: Date (ISODate),
+    city: { lat: Number, lon: Number },
     temperature_2m: [Number],
     precipitation: [Number],
     cloud_cover: [Number],

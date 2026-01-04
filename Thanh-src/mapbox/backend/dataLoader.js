@@ -105,8 +105,8 @@ async function syncAndGetWeatherData(start, end) {
 
             return {
                 // Bên trái: Tên Frontend cần --- Bên phải: Tên trong DB của bạn
-                date:           doc.date,
-                location:       doc.location,
+                date:           doc.timestamp,
+                location:       doc.city,
                 
                 // Mapping dữ liệu mảng
                 hourly_temps:   doc.temperature_2m,
