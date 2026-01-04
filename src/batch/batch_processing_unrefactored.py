@@ -57,7 +57,7 @@ def log_step_headline(message: str, border_char='=') -> None:
     logger.info(border_char * 70)
     return None
 
-def create_k8s_spark(app_name: str):
+def create_k8s_batch_spark(app_name: str):
     try:
         spark = (
             SparkSession.builder
