@@ -32,6 +32,11 @@ spec:
               configMapKeyRef:
                 name: app-config
                 key: PORT
+          - name: WEATHER_COLLECTION_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: WEATHER_COLLECTION_NAME
           # Lấy MAPBOX_TOKEN từ Secret
           - name: MAPBOX_TOKEN
             valueFrom:
