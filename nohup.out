@@ -1,0 +1,15 @@
+* Tunnel successfully started
+
+* NOTE: Please do not close this terminal as this process must stay alive for the tunnel to be accessible ...
+
+E0105 02:28:16.237617    5250 ssh_tunnel.go:92] error listing services: Get "https://127.0.0.1:52009/api/v1/services": EOF
+E0105 02:28:26.282831    5250 ssh_tunnel.go:97] error listing ingresses: Get "https://127.0.0.1:52009/apis/networking.k8s.io/v1/ingresses": EOF
+* Stopping tunnel for service minio-external-service.
+* Stopping tunnel for service kafka-ui-external.
+* Stopping tunnel for service mongo-express-service.
+* Stopping tunnel for service weather-app-service.
+* Stopping tunnel for service grafana.
+* Stopping tunnel for service spark-master-ui-external.
+* Stopping tunnel for service kafka-cluster-dual-role-0.
+* Stopping tunnel for service kafka-cluster-kafka-external-bootstrap.
+* Stopping tunnel for service spark-driver-ui-external.
