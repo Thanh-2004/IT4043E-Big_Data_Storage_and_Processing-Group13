@@ -8,4 +8,4 @@ mkdir -p /tmp/.ivy2 && /opt/spark/bin/spark-submit \
     --conf spark.dynamicAllocation.enabled=false \
     --conf spark.executor.instances=1 \
     --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.0,org.projectnessie.nessie-integrations:nessie-spark-extensions-3.5_2.12:0.104.5,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
-    /opt/spark/jobs/batch_processing_demo.py
+    /opt/spark/jobs/batch/batch_processing_demo.py # change file name here to run; can also use stream app here

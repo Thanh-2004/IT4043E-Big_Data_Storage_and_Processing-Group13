@@ -11,7 +11,7 @@ import pyspark
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 from src.utils.spark_action import create_k8s_spark
-from schemas.spark.schema import kafka_raw_schema
+from src.schemas.spark.schema import kafka_raw_schema
 from src.utils.data_constants import PHYSICAL_LIMITS, TIMESTAMP_COLS
 
 import logging

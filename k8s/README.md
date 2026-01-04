@@ -33,7 +33,7 @@ Configure memory and number of CPUs designated to the cluster. By default (if no
     
     + Mount Spark application codes into Minikube to be mounted into Spark pods:
         ```
-        nohup (complete)
+        nohup minikube mount ./src:/mnt/spark/jobs > minikube-mount.log 2>&1 &
         ```
     
     + Open tunnel to access Web UIs/Dashboards; also required to allow Strimzi to create Kafka cluster (?):
