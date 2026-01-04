@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # MongoDB standalone cho demo
+  mongodb-demo:
+    image: mongo:7.0
+    container_name: mongodb-demo
+    hostname: mongodb-demo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_demo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=weather_demo_db
+    networks:
+      - demo-network
+    restart: unless-stopped
+
+  # (Optional) Mongo Express - Web UI cho MongoDB
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express-demo
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb-demo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin123
+    depends_on:
+      - mongodb-demo
+    networks:
+      - demo-network
+    restart: unless-stopped
+
+  # (Optional) Spark để chạy script trong container
+  spark-demo:
+    image: bitnami/spark:3.5.1
+    container_name: spark-demo
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: >
+      sh -c "
+        pip install pyyaml pymongo &&
+        spark-submit 
+        --packages org.mongodb.spark:mongo-spark-connector_2.12:10.3.0 
+        --master local[*]
+        batch_mongo.py
+      "
+    depends_on:
+      - mongodb-demo
+    networks:
+      - demo-network
+    environment:
+      - SPARK_MODE=standalone
+
+volumes:
+  mongodb_demo_data:
+    driver: local
+
+networks:
+  demo-network:
+    driver: bridge
