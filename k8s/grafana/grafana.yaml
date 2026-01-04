@@ -1,0 +1,228 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-exporter
+spec:
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: weather-exporter
+  type: NodePort # Để bạn có thể test từ bên ngoài cluster
+
+---
+apiVersion: apps/v1
+kind: Deployment # Thay cho service 'weather-exporter'
+metadata:
+  name: weather-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-exporter
+  template:
+    metadata:
+      labels:
+        app: weather-exporter
+    spec:
+      containers:
+      - name: weather-exporter
+        image: ntthanh0803/grafana-weather-exporter:latest # <--- Dùng image bạn vừa push
+        imagePullPolicy: Always
+        env:
+        - name: MONGO_URI
+          value: "mongodb://mongo:mongo123@mongodb:27017/" 
+        - name: DB_NAME
+          value: "weather_db"
+        - name: COLLECTION_NAME
+          value: "stream_data"
+        ports:
+        - containerPort: 8000
+
+
+
+---
+# 2.1 Job tạo bucket 'thanos' (Thay cho minio-mc)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-bucket
+  namespace: monitoring
+spec:
+  template:
+    spec:
+      containers:
+      - name: create-bucket
+        image: minio/mc
+        command: ["/bin/sh", "-c"]
+        args:
+          - "until (mc alias set minio http://minio:9000 minioadmin minioadmin); do echo waiting...; sleep 1; done; mc mb minio/thanos; exit 0;"
+      restartPolicy: OnFailure
+
+---
+# 3. Prometheus + Thanos Sidecar (Chạy chung 1 Pod)
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  ports:
+    - port: 9090
+      name: http-prom
+    - port: 10901
+      name: grpc-sidecar
+  selector:
+    app: prometheus
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      volumes:
+      - name: config-volume
+        configMap:
+          name: monitoring-config
+      - name: prometheus-data
+        emptyDir: {} # Trong thực tế nên dùng PVC
+      containers:
+      # Container 1: Prometheus
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        args:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus"
+          - "--storage.tsdb.min-block-duration=2h"
+          - "--storage.tsdb.max-block-duration=2h"
+          - "--web.enable-lifecycle"
+        volumeMounts:
+          - name: config-volume
+            mountPath: /etc/prometheus/prometheus.yml
+            subPath: prometheus.yml
+          - name: prometheus-data
+            mountPath: /prometheus
+      # Container 2: Thanos Sidecar (Đi kèm để đẩy data)
+      - name: thanos-sidecar
+        image: thanosio/thanos:v0.32.5
+        args:
+          - "sidecar"
+          - "--tsdb.path=/prometheus"
+          - "--prometheus.url=http://localhost:9090"
+          - "--objstore.config-file=/etc/thanos/bucket_config.yaml"
+        volumeMounts:
+          - name: prometheus-data
+            mountPath: /prometheus
+          - name: config-volume
+            mountPath: /etc/thanos/bucket_config.yaml
+            subPath: bucket_config.yaml
+
+---
+# 4. Thanos Store & Querier (Gộp YAML cho gọn)
+apiVersion: v1
+kind: Service
+metadata:
+  name: thanos-querier
+  namespace: monitoring
+spec:
+  ports:
+    - port: 10901
+  selector:
+    app: thanos-querier
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-components
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: thanos-components
+  template:
+    metadata:
+      labels:
+        app: thanos-components
+    spec:
+      volumes:
+      - name: config-volume
+        configMap:
+          name: monitoring-config
+      containers:
+      # Thanos Store (Đọc MinIO)
+      - name: thanos-store
+        image: thanosio/thanos:v0.32.5
+        args:
+          - "store"
+          - "--objstore.config-file=/etc/thanos/bucket_config.yaml"
+        ports:
+          - containerPort: 10902
+        volumeMounts:
+          - name: config-volume
+            mountPath: /etc/thanos/bucket_config.yaml
+            subPath: bucket_config.yaml
+      # Thanos Querier (Giao diện tổng)
+      - name: thanos-querier
+        image: thanosio/thanos:v0.32.5
+        args:
+          - "query"
+          - "--store=prometheus:10901" # Gọi sang Sidecar
+          - "--store=localhost:10901"  # Gọi sang Store (cùng pod này hoặc tách ra)
+        ports:
+          - containerPort: 10901
+
+
+
+
+
+---
+# 7. Grafana
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  type: LoadBalancer # Để truy cập từ localhost (Docker Desktop hỗ trợ)
+  ports:
+    - port: 7878
+      targetPort: 7878
+  selector:
+    app: grafana
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        ports:
+          - containerPort: 7878
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin"
+        - name: GF_INSTALL_PLUGINS
+          value: "grafana-mongodb-datasource"
+        - name: GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS
+          value: "grafana-mongodb-datasource"

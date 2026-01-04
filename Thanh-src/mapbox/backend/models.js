@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
 
 const WeatherSchema = new mongoose.Schema({
-    timestamp: Date (ISODate),
-    city: { lat: Number, lon: Number },
+    timestamp: Date,
+    latitude: Number,
+    longitude: Number,
+    // city: { lat: Number, lon: Number },
     temperature_2m: [Number],
     precipitation: [Number],
     cloud_cover: [Number],

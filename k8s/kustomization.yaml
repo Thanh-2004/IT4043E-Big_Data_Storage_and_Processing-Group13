@@ -7,4 +7,5 @@ resources:
   - ./mongodb/mongo-deployment.yaml
   - ./nessie/
   - ./spark/
-  # - ./mapbox/mapbox-app.yaml
+  - ./mapbox/mapbox-app.yaml
+  - ./grafana/grafana.yaml
