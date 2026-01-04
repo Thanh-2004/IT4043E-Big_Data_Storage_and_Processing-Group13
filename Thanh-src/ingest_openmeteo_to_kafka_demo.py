@@ -2,8 +2,8 @@ import os, time, json, requests, datetime
 from kafka import KafkaProducer
 from datetime import timedelta
 
-BROKER = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
-TOPIC = os.getenv("KAFKA_TOPIC", "weather.raw")
+BROKER = os.getenv("KAFKA_BOOTSTRAP", "localhost:9094")
+TOPIC = os.getenv("KAFKA_TOPIC", "openmeteo-data")
 
 HISTORICAL_URL = "https://archive-api.open-meteo.com/v1/archive"
 GLOBAL_START_DATE = "2020-01-01"
@@ -204,7 +204,7 @@ if __name__ == "__main__":
             
             data = fetch_weather(city["lat"], city["lon"], s_str, e_str)
 
-            if (not data) or ("hour" not in data):
+            if (not data) or ("hourly" not in data):
                 print(f"No data for city {city["name"]}!")
                 continue
             
@@ -229,7 +229,7 @@ if __name__ == "__main__":
                     "ingested_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                     "source": "open-meteo"
                 }
-                producer.send(TOPIC, record)
+                producer.send(TOPIC, record, key=city["name"].encode("utf-8"))
                 record_cnt += 1
             producer.flush()
             print(f"Batch of size {record_cnt} sent to Kafka. Waiting 30 seconds...")
