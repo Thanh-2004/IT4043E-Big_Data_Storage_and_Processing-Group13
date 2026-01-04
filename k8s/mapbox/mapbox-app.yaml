@@ -1,0 +1,53 @@
+# --- App Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-app
+spec:
+  replicas: 1 # Số lượng bản sao (có thể tăng lên 2, 3 để chịu tải)
+  selector:
+    matchLabels:
+      app: weather-app
+  template:
+    metadata:
+      labels:
+        app: weather-app
+    spec:
+      containers:
+      - name: weather-app
+        # QUAN TRỌNG: Thay thế bằng tên image bạn đã push lên Docker Hub
+        image: ntthanh0803/mapbox-app:latest 
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+          # Lấy biến MONGO_URI và PORT từ ConfigMap
+          - name: MONGO_URI
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: MONGO_URI
+          - name: PORT
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: PORT
+          # Lấy MAPBOX_TOKEN từ Secret
+          - name: MAPBOX_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: MAPBOX_TOKEN
+---
+# --- App Service (External) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-app-service
+spec:
+  type: LoadBalancer # Dùng LoadBalancer để expose ra ngoài (hoặc NodePort nếu chạy local)
+  selector:
+    app: weather-app
+  ports:
+    - port: 7888        # Port bạn muốn truy cập từ ngoài (như trong compose)
+      targetPort: 3000  # Port ứng dụng đang chạy bên trong
