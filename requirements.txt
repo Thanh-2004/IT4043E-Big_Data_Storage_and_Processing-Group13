@@ -1,0 +1,15 @@
+kafka-python
+confluent-kafka
+pyspark
+minio
+pandas
+numpy
+pyarrow
+fastparquet
+pymongo
+requests
+Flask
+scikit-learn
+pyyaml
+python-dotenv
+python-dateutil
