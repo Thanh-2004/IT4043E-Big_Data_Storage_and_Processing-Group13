@@ -6,4 +6,5 @@ resources:
   - ./kafka-connect/
   - ./mongodb/mongo-deployment.yaml
   - ./nessie/
-  - ./mapbox/mapbox-app.yaml
+  - ./spark/
+  # - ./mapbox/mapbox-app.yaml
