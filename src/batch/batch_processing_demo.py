@@ -562,10 +562,11 @@ def main():
     # HEADS-UP! CHANGE THIS TO READ THE CORRECT DATA OBJECT FROM MINIO
     # SAMPLE DATA TRIAL
     bronze_df = (
-        spark.readStream
+        spark.read
         .format("json")
         .schema(kafka_raw_schema)
-        .load(f"s3a://{RAW_ZONE_PATH}/*")
+        .option("recursiveFileLookup", "true")
+        .load(f"s3a://{RAW_ZONE_PATH}")
     )
     num_records = bronze_df.count()
     logger.info(f'Found {num_records} weather data records!')

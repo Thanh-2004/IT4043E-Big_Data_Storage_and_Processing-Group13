@@ -8,6 +8,7 @@ PROJECT_ROOT = os.path.dirname(
 sys.path.insert(0, PROJECT_ROOT)
 
 import pyspark
+from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 from schemas.spark.schema import kafka_raw_schema
 from src.batch.batch_processing_demo import log_step_headline, PHYSICAL_LIMITS
@@ -19,10 +20,52 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+PACKAGES = (
+    "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.0",
+    "org.projectnessie.nessie-integrations:nessie-spark-extensions-3.5_2.12:0.104.5",
+    "org.apache.hadoop:hadoop-aws:3.3.4",
+    "com.amazonaws:aws-java-sdk-bundle:1.12.262"
+)
+WAREHOUSE_PATH = os.getenv("CATALOG_WAREHOUSE", "s3a://warehouse/nessie")
+RAW_ZONE_PATH = os.getenv("RAW_ZONE_PATH", "raw-zone/topics/events/") # <bucket name>/<topic name>
+CATALOG_URI = os.getenv("CATALOG_URI", "http://nessie:19120/api/v2")
+ENDPOINT_URL = os.getenv("S3_ENDPOINT", "http://minio-internal-service:9000")
+MINIO_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID", "minioadmin")
+MINIO_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin123")
 
 def create_streaming_spark(app_name):
     # ADD YOUR CODE HERE
-    pass
+    try:
+        spark = (
+            SparkSession.builder
+            .appName(app_name)
+            # Catalog configs
+            .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
+            .config("spark.sql.catalog.lakehouse.type", "nessie")
+            .config("spark.sql.catalog.lakehouse.warehouse", WAREHOUSE_PATH)
+            .config("spark.sql.catalog.lakehouse.uri", CATALOG_URI)
+            .config("spark.sql.catalog.lakehouse.ref", "main") # Nessie catalog branch to work in
+            .config("spark.sql.catalog.lakehouse.authentication.type", "NONE") # Nessie authentication type (NONE, BEARER, OAUTH2, AWS)
+            .config("spark.sql.defaultCatalog", "lakehouse")
+            
+            .config("spark.jars.packages", ",".join(PACKAGES))
+            .config("spark.sql.extensions", 
+                    "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,\
+                        org.projectnessie.spark.extensions.NessieSparkSessionExtensions")
+            
+            # MinIO S3 configs (for s3a interface)
+            .config("spark.hadoop.fs.s3a.endpoint", ENDPOINT_URL)
+            .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY)
+            .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY)
+            .config("spark.hadoop.fs.s3a.path.style.access", "true")
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            
+            .getOrCreate()
+        )
+        return spark
+    except Exception as e:
+        logger.error("Fail to create SparkSession!")
+        raise
 
 def streaming_transform(streaming_df: pyspark.sql.DataFrame) -> pyspark.sql.DataFrame:
     # We need the ALL columns to be of the correct type first before using deduplication with watermark
