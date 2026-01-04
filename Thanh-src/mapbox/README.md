@@ -83,3 +83,12 @@ docker compose up --build -d
 ```
 
 And run ```docker compose down``` when finish.
+
+Build and push docker image to docker hub:
+```
+# Build
+docker build -t ntthanh0803/mapbox-app:latest .
+
+# Push
+docker push ntthanh0803/mapbox-app:latest
+```
