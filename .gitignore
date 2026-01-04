@@ -1,6 +1,7 @@
 # others
 # Kafka Connect connector plugins
 demo/kafka-minio/connect-plugins/
+*.out
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

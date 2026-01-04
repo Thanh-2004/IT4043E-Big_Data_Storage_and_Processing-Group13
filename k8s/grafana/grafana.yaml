@@ -389,6 +389,19 @@ spec:
   selector:
     app: prometheus
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-external
+  namespace: bigdata-pipeline
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 9090
+      name: http-prom
+  selector:
+    app: prometheus
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -528,7 +541,7 @@ spec:
         env:
         - name: MONGODB_URI
           # Đảm bảo URI này khớp với tên service mongo và password của bạn
-          value: "mongodb://mongo:mongo123@mongo.bigdata-pipeline.svc.cluster.local:27017"
+          value: "mongodb://mongo:mongo123@mongodb:27017/?authSource=admin"
         ports:
           - containerPort: 9216
 ---
