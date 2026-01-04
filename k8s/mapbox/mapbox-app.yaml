@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: weather-app
+  namespace: bigdata-pipeline
 spec:
   replicas: 1 # Số lượng bản sao (có thể tăng lên 2, 3 để chịu tải)
   selector:
@@ -16,7 +17,7 @@ spec:
       containers:
       - name: weather-app
         # QUAN TRỌNG: Thay thế bằng tên image bạn đã push lên Docker Hub
-        image: ntthanh0803/mapbox-app:latest 
+        image: bachthetrollface/mapbox-app:latest 
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
@@ -49,6 +50,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: weather-app-service
+  namespace: bigdata-pipeline
 spec:
   type: LoadBalancer # Dùng LoadBalancer để expose ra ngoài (hoặc NodePort nếu chạy local)
   selector:
