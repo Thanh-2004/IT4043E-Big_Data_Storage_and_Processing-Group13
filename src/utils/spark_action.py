@@ -21,7 +21,9 @@ PACKAGES = (
     "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.0",
     "org.projectnessie.nessie-integrations:nessie-spark-extensions-3.5_2.12:0.104.5",
     "org.apache.hadoop:hadoop-aws:3.3.4",
-    "com.amazonaws:aws-java-sdk-bundle:1.12.262"
+    "com.amazonaws:aws-java-sdk-bundle:1.12.262",
+    "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0",
+    "org.mongodb.spark:mongo-spark-connector_2.12:10.3.0"
 )
 
 WAREHOUSE_PATH = os.getenv("CATALOG_WAREHOUSE", "s3a://warehouse/nessie")
@@ -55,6 +57,9 @@ def create_k8s_spark(app_name: str):
             .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY)
             .config("spark.hadoop.fs.s3a.path.style.access", "true")
             .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            
+            # MongoDB connection
+            .config("spark.mongodb.write.connection.uri", "mongodb://mongo:mongo123@mongodb:27017")
             
             .getOrCreate()
         )
