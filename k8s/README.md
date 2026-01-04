@@ -30,6 +30,16 @@ Configure memory and number of CPUs designated to the cluster. By default (if no
 
         helm install strimzi-release strimzi/strimzi-kafka-operator --namespace=bigdata-pipeline --create-namespace
         ```
+    
+    + Mount Spark application codes into Minikube to be mounted into Spark pods:
+        ```
+        nohup (complete)
+        ```
+    
+    + Open tunnel to access Web UIs/Dashboards; also required to allow Strimzi to create Kafka cluster (?):
+        ```
+        nohup minikube tunnel &
+        ```
 
 - Shortcut to run the system: Assuming you are in the top-level directory of this repo, run:
 ```
@@ -37,21 +47,23 @@ kubectl apply -k k8s/
 ```
 This applies resources defined in the `kustomization.yaml` file found in this `k8s` directory. Kustomize config files are found in each subdirectory to support using this command.
 
-- Create namespace for system (already included in `kustomization.yaml`):
+- Create namespace for system (already included in `kustomization.yaml` and automatically created when installing Strimzi):
 ```
 kubectl apply -f namespace.yaml
 ```
 
-- Install Nessie Helm chart:
+- Access Web UIs of apps in the system:
 
-    + Create the database named `nessie` in MongoDB: run `minikube tunnel` in another terminal and access Mongo Express at `localhost:8081`, then create the database
+- To stop the cluster:
 
-    + Run:
+    + End background Minikube commands:
         ```
-        helm install -n bigdata-pipeline nessie nessie-helm/nessie \
-            --set replicaCount=1 \
-            --set-string resources.requests.memory=500Mi \
-            --set-string resources.limits.memory=1Gi \
-            --set-string resources.requests.cpu=1 \
-            -f ./k8s/nessie/values.yaml
+        pkill -f "minikube tunnel"
+        pkill -f "minikube mount"
+        ```
+    
+    + Stop Minikube (or delete entirely):
+        ```
+        minikube stop       # to stop
+        minikube delete     # to delete
         ```

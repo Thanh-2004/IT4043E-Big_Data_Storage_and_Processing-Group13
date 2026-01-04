@@ -10,4 +10,4 @@ spec:
   replicas: 1 # adjust based on num. of brokers, for small-scale demo use 1
   config:
     retention.ms: 7200000 # time that events are stored by brokers; after this duration, clear
-    segment.bytes: 1073741824 # segmentation size of topic data; here, 1GB
+    segment.bytes: 52428800 # segmentation size of topic data; here, 1GB
