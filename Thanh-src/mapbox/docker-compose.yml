@@ -12,6 +12,7 @@ services:
       - MONGO_URI=mongodb://mongo:27017/weather_db
       - PORT=3000
       - MAPBOX_TOKEN=pk.eyJ1IjoibnR0aGFuaDA4MDMiLCJhIjoiY21oeDJmZzZ5MDY2NjJsb3VmMmw2cnZvbiJ9.SidifhDOD6tL4x_qYkjEBw
+      - WEARTHER_COLLECTION_NAME=stream_data
     depends_on:
       - mongo
 

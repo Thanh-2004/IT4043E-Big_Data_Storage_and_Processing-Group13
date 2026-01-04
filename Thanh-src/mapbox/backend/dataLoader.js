@@ -2,6 +2,8 @@ const { GRID } = require('./config');
 const { WeatherModel } = require('./models');
 const { delay, getDatesInRange, calculateUV, fetchWithRetry } = require('./utils');
 
+console.log("👉 Collection đang dùng là:", WeatherModel.collection.name);
+
 // Hàm chính: Đồng bộ dữ liệu và trả về kết quả
 // async function syncAndGetWeatherData(start, end) {
 //     const dateList = getDatesInRange(start, end);

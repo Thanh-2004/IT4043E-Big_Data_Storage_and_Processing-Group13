@@ -80,6 +80,7 @@ Using VS Code (Recommended):
 Run this command to build docker container:
 ```
 docker compose up --build -d
+docker compose logs -f app
 ```
 
 And run ```docker compose down``` when finish.

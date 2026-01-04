@@ -3,14 +3,14 @@ const mongoose = require('mongoose');
 const WeatherSchema = new mongoose.Schema({
     date: String,
     location: { lat: Number, lon: Number },
-    hourly_temps: [Number],
-    hourly_rain: [Number],
-    hourly_clouds: [Number],
-    hourly_wind: [Number],
-    hourly_wind_u: [Number],
-    hourly_wind_v: [Number]
+    temperature_2m: [Number],
+    precipitation: [Number],
+    cloud_cover: [Number],
+    wind_speed_10m: [Number],
+    wind_direction_10m_x: [Number],
+    wind_direction_10m_y: [Number]
 });
-
-const WeatherModel = mongoose.model('Weather', WeatherSchema);
+const collectionName = process.env.WEATHER_COLLECTION_NAME || 'stream_data';
+const WeatherModel = mongoose.model('Weather', WeatherSchema, collectionName);
 
 module.exports = { WeatherModel };
