@@ -13,9 +13,9 @@ import pyspark.sql.functions as F
 from pyspark.sql.types import *
 from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
-from src.schemas.spark.schema import kafka_raw_schema
-from src.utils.data_constants import PHYSICAL_LIMITS, TIMESTAMP_COLS, WIND_DIRECTION_COLS
-from src.utils.spark_action import create_k8s_spark
+from schemas.schema import kafka_raw_schema
+from utils.data_constants import PHYSICAL_LIMITS, TIMESTAMP_COLS, WIND_DIRECTION_COLS
+from utils.spark_action import create_k8s_spark
 
 RAW_ZONE = os.getenv("RAW_ZONE_PATH", "raw-zone/topics/openmeteo-data/") # <bucket name>/<topic name>
 

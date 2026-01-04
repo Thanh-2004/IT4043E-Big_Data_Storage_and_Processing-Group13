@@ -37,3 +37,5 @@ TWO_PI = 2 * math.pi
 HOURS_PER_DAY = 24.0
 DAYS_PER_YEAR = 365.25
 KHM_TO_MS = 3.6
+KAFKA_BOOTSTRAP = "kafka-cluster-kafka-bootstrap:9092"
+KAFKA_TOPIC = "openmeteo-data"

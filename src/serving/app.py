@@ -1,1 +1,0 @@
-# API for accessing serving layer

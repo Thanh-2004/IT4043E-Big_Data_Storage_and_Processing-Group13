@@ -13,8 +13,8 @@ import pyspark.sql.functions as F
 from pyspark.sql.types import *
 from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
-from src.utils.spark_action import create_k8s_spark
-from src.utils.data_constants import WINDOW_SIZES, ROLLING_FEATURES, LAGGING_FEATURES, TWO_PI, HOURS_PER_DAY, DAYS_PER_YEAR, KHM_TO_MS
+from utils.spark_action import create_k8s_spark
+from utils.data_constants import WINDOW_SIZES, ROLLING_FEATURES, LAGGING_FEATURES, TWO_PI, HOURS_PER_DAY, DAYS_PER_YEAR, KHM_TO_MS
 
 import logging
 # Setting up logging configurations
@@ -252,6 +252,14 @@ def main():
     logger.info(f"After Silver -> Gold transformation: {gold_df.count()} data records")
 
     save_gold_to_iceberg(gold_df=gold_df, spark=spark)
+    (
+        gold_df.write
+        .format("mongodb")
+        .mode("overwrite")
+        .option("database", "weather_db")
+        .option("collection", "batch_gold")
+        .save()
+    )
 
     spark.stop()
 

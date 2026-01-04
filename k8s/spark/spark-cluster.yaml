@@ -40,48 +40,6 @@ spec:
       - name: ivy-cache
         emptyDir: {}
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: spark-master
-  namespace: default
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: spark-master
-  template:
-    metadata:
-      labels:
-        app: spark-master
-    spec:
-      containers:
-      - name: spark-master
-        image: apache/spark:3.5.0  # <--- Switched to Official Image
-        command: [
-          "/opt/spark/bin/spark-class", 
-          "org.apache.spark.deploy.master.Master"
-        ]
-        env:
-        - name: SPARK_MASTER_OPTS
-          value: "-Dspark.master.rest.enabled=true -Dspark.master.rest.port=6066"
-        ports:
-        - containerPort: 7077
-        - containerPort: 6066
-        - containerPort: 8080
-        volumeMounts:
-        - name: spark-jobs
-          mountPath: /opt/spark/jobs
-        - name: ivy-cache
-          mountPath: /tmp
-      volumes:
-      - name: spark-jobs
-        hostPath:
-          path: /opt/spark/jobs
-          type: Directory
-      - name: ivy-cache
-        emptyDir: {}
----
 # 3. Spark Worker Deployment (UPDATED for Apache Image)
 apiVersion: apps/v1
 kind: Deployment

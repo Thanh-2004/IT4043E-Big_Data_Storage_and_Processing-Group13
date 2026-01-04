@@ -10,9 +10,9 @@ sys.path.insert(0, PROJECT_ROOT)
 import pyspark
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
-from src.utils.spark_action import create_k8s_spark
-from src.schemas.spark.schema import kafka_raw_schema
-from src.utils.data_constants import PHYSICAL_LIMITS, TIMESTAMP_COLS
+from utils.spark_action import create_k8s_spark
+from schemas.schema import kafka_raw_schema
+from utils.data_constants import PHYSICAL_LIMITS, TIMESTAMP_COLS, KAFKA_BOOTSTRAP, KAFKA_TOPIC
 
 import logging
 # Setting up logging configurations
@@ -90,14 +90,37 @@ def main():
     logger.info('SparkSession SUCCESSFULLY CREATED!\n')
 
     log_step_headline(message="STEP 2: Read Raw data")
-    # ADD CODE
+
+    df_kafka = (
+        spark.readStream
+        .format("kafka")
+        .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP)
+        .option("subscribe", KAFKA_TOPIC)
+        .option("startingOffsets", "earliest")
+        .load()
+    )
+    df_json = (
+        df_kafka.filter(F.col("value").isNotNull()).selectExpr("CAST(value AS STRING) AS value")
+    )
+    df_parsed = df_json.select(F.from_json(F.col("value"), kafka_raw_schema).alias("data")).select("data.*")
 
     log_step_headline(message="STEP 3: Perform stream data processing")
     # use the method streaming_transform()
-    # ADD CODE
+    stream_df = streaming_transform(df_parsed)
 
     log_step_headline(message="STEP 4: Write Stream to MongoDB")
-    # ADD CODE 
+    write_query = (
+        stream_df.writeStream
+        .format("mongodb")
+        .trigger(processingTime="1 minute")
+        .option("checkpointLocation", "s3a://warehouse/checkpoints/stream-processing/")
+        .option("database", "weather_db")
+        .option("collection", "stream_data")
+        .outputMode("append")
+        .start()
+    )
+    write_query.awaitTermination()
+    spark.stop()
 
 
 if __name__ == "__main__":
