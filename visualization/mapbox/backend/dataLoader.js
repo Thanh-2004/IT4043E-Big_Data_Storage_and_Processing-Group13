@@ -107,12 +107,29 @@ async function syncAndGetWeatherData(start, end) {
         const mappedData = existingData.map(item => {
             // Chuyển đổi từ Mongoose Document sang Object thường
             const doc = item.toObject ? item.toObject() : item;
-            const dateString = formatDateToString(doc.date);
+            // const dateString = formatDateToString(doc.date);
+            let formattedDate = "";
+            
+            // Lấy dữ liệu gốc từ DB (ưu tiên timestamp, nếu không có thì lấy date)
+            const rawTime = doc.timestamp || doc.date; 
+
+            if (rawTime) {
+                try {
+                    // 1. New Date(rawTime): Biến mọi thứ (số, chuỗi ISO) thành Object Date chuẩn
+                    // 2. .toISOString(): Ra dạng "2023-12-25T00:00:00.000Z"
+                    // 3. .replace('T', ' '): Thay chữ T bằng khoảng trắng
+                    // 4. .substring(0, 19): Cắt bỏ phần mili-giây (.000Z) đi
+                    formattedDate = new Date(rawTime).toISOString().replace('T', ' ').substring(0, 19);
+                } catch (e) {
+                    console.error("Lỗi format ngày:", rawTime);
+                    formattedDate = "Invalid Date";
+                }
+            }
 
             return {
                 // Bên trái: Tên Frontend cần --- Bên phải: Tên trong DB của bạn
                 // date:           doc.timestamp,
-                date:            dateString,
+                date:            formattedDate,
                 location:       {lat: doc.latitude, lon: doc.longitude},
                 
                 // Mapping dữ liệu mảng
