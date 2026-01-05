@@ -26,6 +26,10 @@ function processData(flatData) {
     globalData = {};
     const dateSet = new Set();
     flatData.forEach(item => {
+        let dateKey = item.date;
+        if (typeof dateKey === 'string' && dateKey.includes('T')) {
+            dateKey = dateKey.split('T')[0];
+        }
         if (!globalData[item.date]) globalData[item.date] = [];
         globalData[item.date].push(item);
         dateSet.add(item.date);

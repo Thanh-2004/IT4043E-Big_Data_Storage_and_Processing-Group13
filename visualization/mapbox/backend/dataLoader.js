@@ -82,6 +82,11 @@ console.log("👉 Collection đang dùng là:", WeatherModel.collection.name);
 //     return existingData;
 // }
 
+function formatDateToString(dateObj) {
+    // Chuyển Date Object hoặc Timestamp thành chuỗi "YYYY-MM-DD"
+    return new Date(dateObj).toISOString().split('T')[0];
+}
+
 async function syncAndGetWeatherData(start, end) {
     let query = {}; // Mặc định là query rỗng (nghĩa là lấy tất cả)
     
@@ -102,10 +107,12 @@ async function syncAndGetWeatherData(start, end) {
         const mappedData = existingData.map(item => {
             // Chuyển đổi từ Mongoose Document sang Object thường
             const doc = item.toObject ? item.toObject() : item;
+            const dateString = formatDateToString(doc.date);
 
             return {
                 // Bên trái: Tên Frontend cần --- Bên phải: Tên trong DB của bạn
-                date:           doc.timestamp,
+                // date:           doc.timestamp,
+                date:            dateString,
                 location:       {lat: doc.latitude, lon: doc.longitude},
                 
                 // Mapping dữ liệu mảng
